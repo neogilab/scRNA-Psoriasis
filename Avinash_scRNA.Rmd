@@ -1,0 +1,1167 @@
+---
+title: "scRNA Analysis of Psoriasis patient samples"
+author: | 
+  | Anoop Ambikan
+  | Division of Clinical Microbiology
+  | Karolinska Institutet
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: lumen
+---
+
+<style type="text/css">
+
+h1.title {
+  font-size: 35px;
+  #color: DarkRed;
+  text-align: center;
+}
+h4.author {
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  #color: DarkRed;
+  text-align: center;
+}
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project
+
+Blood samples and matched lesional skin biopsies from 4 psoriasis patients (sample coding mentioned below) were included in the study. The skin biopsies were enzymatically digested to get cell suspensions and then both blood and skin cells were stained with fluorescently labelled antibodies and the populations of interest were sorted in a Sony sorter. The following populations from each sample were sorted: CD177- neutrophils, CD177+ neutrophils, T cells (all CD3+ cells), eosinophils and mononuclear phagocytes. All cell populations from each sample were pooled into one tube and the samples were processed for scRNAseq in the 10x Genomics platform. So, in total, we have scRNAseq data from 4 blood samples and 4 matched skin samples from psoriasis patients.
+
+The main objectives of the project are.
+
+1. Transcriptomic profile of all populations in Blood (=4 samples) vs tissue (=4 samples)- Comparison of all blood cells (from the 4 patients) with all tissue cells (from the 4       patients) and then comparison of the matched blood-tissue cells.
+  + Neutrophils
+  + CD3+ Lymphocytes
+  + Eosinophils
+  + Mononuclear phagocytes
+  
+2. Extensive characterization of neutrophils population.
+
+3. Differentially expressed genes (DEG) analysis. Besides looking into the whole DEG list, we would be interested to investigate the expression of the following genes.
+
+| ID              | Gene   |
+|-----------------|--------|
+| ENSG00000164047 | CAMP   |
+| ENSG00000159339 | PADI4  |
+| ENSG00000102837 | OLF4   |
+| ENSG00000169508 | GPR183 |
+
+## Data Generation
+
+The samples were sequenced in **10x Genomics** platform. After sequencing the samples were demuliplexed and then count matrix were generated using **count** utility  in **cellranger-5.0.1**. Homo sapiens reference genome version GRCh38.96 downloaded from Ensembl were used as reference. Genes annotated as **protein coding or lncRNA** are selected as reference set. The count matrices of blood samples and skin tissue samples were then separetely merged using **aggr** utility in **cellranger-5.0.1**.
+
+```{r, engine='bash',eval=FALSE,echo=TRUE}
+cellranger mkgtf ../../STAR_Genome/Homo_sapiens.GRCh38.96.gtf Homo_sapiens_filtered.gtf --attribute=gene_biotype:protein_coding --attribute=gene_biotype:lncRNA
+cellranger mkref --genome=Human --fasta=../../STAR_Genome/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa --genes=Homo_sapiens_filtered.gtf --nthreads=8
+
+cellranger count --id=Out_*_blood --no-bam --fastqs=/proj/sens2018618/scRNA/*/Blood --sample=*_BLOOD --transcriptome=/proj/sens2018618/scRNA/Ref/Human --localcores=8
+cellranger count --id=Out_*_Tissue --no-bam --fastqs=/proj/sens2018618/scRNA/*/Tissue --sample=*_TISSUE --transcriptome=/proj/sens2018618/scRNA/Ref/Human --localcores=8
+
+cellranger aggr --id=Saline --csv=saline.csv --normalize=mapped --localcores=10
+cellranger aggr --id=Morphine --csv=morphine.csv --normalize=mapped --localcores=10
+```
+
+## Downstream Analysis
+
+All the downstream analysis were performed using **R package Seurat v3.1.5** and figures are generated using **ggplot2**. Firstly, the analysis was performed separately on blood and skin tissue samples, to study the difference in gene expression pattern in different cell types of them. 
+
+## Blood
+
+The analysis involves the given below steps,
+
+1. QC & Pre-processing
+2. Cell clustering
+3. Cell type identification
+4. Differential expression analysis
+
+### QC & Pre-processing
+
+In this step, low quality and erroneous cells will be removed from the data. Here we check for low quality cell/ empty droplets, cell doublets/multiplets, mitochondrial and ribosomal rna. Then the data will be cleaned based on the contamination level. Low-quality cells or empty droplets will often have very few genes and cell doublets or multiplets may exhibit an aberrantly high gene count. We have selected features detected in at least 3 cells and cells where at least 200 features are detected. Various characteristics of the data are first visualized using violin plots and pre-processing were performed based on the corresponding visualization of the data.
+
+```{r,warning=FALSE,message=FALSE,fig.align = "center",fig.height=5, fig.width=7,fig.cap = c("Figure 1 : Bargraph shows number of cells in each group"),fig.margin=TRUE,echo=FALSE}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+BL <- Read10X_h5("/home/anoop/Desktop/Avinash/Blood/outs/count/filtered_feature_bc_matrix.h5", use.names = TRUE)
+
+Blood <- CreateSeuratObject(BL, project = "Blood",min.features = 200,min.cells=3)
+
+Blood <- PercentageFeatureSet(Blood, "^MT-", col.name = "mitochondrial")
+Blood <- PercentageFeatureSet(Blood, "^RP[SL]", col.name = "ribosomal")
+
+
+Blood@meta.data <- Blood@meta.data %>%
+  dplyr::rename(nUMI = nCount_RNA,nGene = nFeature_RNA)
+
+Blood@meta.data %>% 
+  ggplot(aes(x=orig.ident,fill=orig.ident)) + 
+  geom_bar() +
+  theme_classic() +
+  theme(text = element_text(size=15),axis.title.x = element_blank()) +
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  labs(title = "Number of cells per group",
+       subtitle = "Determined by number of unique cellular barcodes detected")+
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold"),
+        plot.subtitle = element_text(color = "orange", size = 9),
+        plot.caption = element_text(color = "green", size = 6, face = "italic")) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), plot.caption = element_text(hjust = 1))
+
+```
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.height=5, fig.width=7, echo=FALSE,fig.cap =c("Figure 2: Histogram of the number of UMIs/transcripts per cell","Figure 3: Histogram of the distribution of genes detected per cell","Figure 4: Distribution of genes detected per cell","Figure 5: Correlation between genes detected and number of UMIs/transcripts","Figure 6: Correlation between various characteristics","Figure 7: Violin plot visualizes cell distribution based on various characteristics")}
+Blood@meta.data %>% 
+  ggplot(aes(color=orig.ident, x=nUMI, fill= orig.ident)) + 
+  geom_density(alpha = 0.2) + 
+  scale_x_log10() + 
+  theme_classic() +
+  ylab("log10 Cell density") +
+  theme(text = element_text(size=12), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.title = element_text(hjust=0.5, face="bold")) +
+  labs(title = "Number of UMIs/transcripts per cell")+
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+Blood@meta.data %>% 
+  ggplot(aes(color=orig.ident, x=nGene, fill= orig.ident)) + 
+  geom_density(alpha = 0.2) + 
+  scale_x_log10() + 
+  theme_classic() +
+  ylab("log10 Cell density") +
+  theme(text = element_text(size=15), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.title = element_text(hjust=0.5, face="bold")) +
+  labs(title = "Number of genes detected per cell") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+Blood@meta.data %>% 
+  ggplot(aes(x=orig.ident, y=log10(nGene), fill=orig.ident)) + 
+  geom_boxplot() + 
+  theme_classic() +
+  theme(text = element_text(size=15), axis.title.x = element_blank()) +
+  theme(plot.title = element_text(hjust=0.5, face="bold")) +
+  labs(title = "Number of genes detected per cell") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold"),
+        plot.subtitle = element_text(color = "orange", size = 9),
+        plot.caption = element_text(color = "green", size = 6, face = "italic")) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+
+
+Blood@meta.data %>% 
+  ggplot(aes(x=nUMI, y=nGene)) + 
+  geom_point(color="grey") + 
+  stat_smooth(method=lm) +
+  scale_x_log10() + 
+  scale_y_log10() + 
+  theme_classic() +
+  facet_wrap(~orig.ident) +
+  theme(text = element_text(size=12), axis.text.x = element_text(angle= 45, vjust = 1, hjust=1)) +
+  theme(plot.title = element_text(hjust=0.5, face="bold")) +
+  labs(title = "Correlation between genes detected and number of UMIs/transcripts") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+cowplot::plot_grid(ncol = 3,FeatureScatter(Blood, "nUMI"  , "nGene", group.by = "orig.ident", pt.size = .5),
+                   FeatureScatter(Blood, "ribosomal", "nGene", group.by = "orig.ident", pt.size = .5),
+                   FeatureScatter(Blood, "mitochondrial", "nGene", group.by = "orig.ident", pt.size = .5))
+
+feats <- c("nGene","nUMI","mitochondrial","ribosomal")
+VlnPlot(Blood,features = feats, pt.size = 0.1,ncol = 4) + NoLegend()
+
+```
+
+
+From Figure 7, it can be seen that, there are lots of cells with very low number of genes detected and high number of cells with high number genes detected. It can be also observed that there are lots of cells with significant mitochondrial contamination which indicate dying cells. So quality filtering was performed. Cells having detected genes >2500 were filtered out from the data also we have filtered out cells having >10% mitochondrial features. After quality filtering, we have re-checked the quality metrics to see how improved is the data.
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.cap=c("Figure 8: Data after quality filtering","Figure 9 : Number of cells per group after filtering"), fig.height=5, fig.width=7,echo=FALSE}
+data.filt <- subset(Blood, subset = nGene < 2500 & mitochondrial < 10)
+
+VlnPlot(data.filt, features = feats, pt.size = 0.1,ncol = 4) + NoLegend()
+
+data.filt@meta.data %>% 
+  ggplot(aes(x=orig.ident,fill=orig.ident)) + 
+  geom_bar() +
+  theme_classic() +
+  theme(text = element_text(size=15),axis.title.x = element_blank()) +
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  labs(title = "Number of cells per group",
+       subtitle = "Determined by number of unique cellular barcodes detected")+
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold"),
+  plot.subtitle = element_text(color = "orange", size = 9),
+  plot.caption = element_text(color = "green", size = 6, face = "italic")) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), plot.caption = element_text(hjust = 1))
+```
+
+Next we have checked the variation of gene expressin across the Blood tissue. The data was first normalized over library size and most varying genes across cells in each group were identified. List of genes which are highly varying across cells in blood can be found in Highly_Varying_Genes_blood.txt. Top 15 genes are displayed in the below scatterplots.
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.cap=c("Figure 11: Top 15 highly variable genes (Blood)","Figure 10: Top 15 highly variable genes in blood"), echo=FALSE,fig.height=5, fig.width=7}
+data.filt=NormalizeData(data.filt,verbose = FALSE)
+data.filt=FindVariableFeatures(data.filt, selection.method = "vst", nfeatures = 1000,verbose = FALSE)
+
+
+top15_blood <- head(x = VariableFeatures(object = data.filt), n = 15)
+unlabelled_blood <- VariableFeaturePlot(object = data.filt)
+write.table(unlabelled_blood$data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Highly_Varying_Genes_Blood.txt",sep="\t",col.names = NA,quote = FALSE)
+
+LabelPoints(plot = unlabelled_blood,
+            points = top15_blood,
+            repel = TRUE) + labs(title = "Top 15 highly variable genes (Blood)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+### Cell clustering
+In this step, cells were clustered based on their type in the sample. In the analysis, we have also scaled the data and then regressed out various technical variances in the data if any. First, Canonical correlation analysis (CCA) was performed, which uses shared highly variable genes to reduce the dimensionality of the data and align the cells in each sample into the maximally correlated space (based on sets of genes exhibiting robust correlation in expression). Shared highly variable genes are most likely to represent those genes distinguishing the different cell types present.
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.cap="Figure 12: Cell cycle scoring for blood", echo=FALSE,fig.height=5, fig.width=7}
+s_genes <- cc.genes$s.genes
+g2m_genes <- cc.genes$g2m.genes
+
+data.filt <- ScaleData(object = data.filt, 
+                      verbose = FALSE)
+data.filt <- CellCycleScoring(data.filt,g2m.features = g2m_genes,s.features = s_genes)
+data.filt <- RunPCA(data.filt,verbose = FALSE)
+DimPlot(object = data.filt, reduction = "pca", group.by= "Phase") + 
+  labs(title = "Cell cycle scoring for blood and tissue samples") + 
+  theme(plot.title = element_text(color = "steelblue4", size = 10, face = "bold"),
+  plot.subtitle = element_text(color = "orange", size = 10)) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+```
+
+Variations from cell cycle scoring were regressed out.
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.cap="Figure 13: Cell cycle scoring (After regression)", echo=FALSE,fig.height=5, fig.width=7}
+vars_to_regress <- c("S.Score", "G2M.Score")
+data.filt <- ScaleData(data.filt, vars.to.regress = vars_to_regress)
+data.filt <- RunPCA(data.filt,verbose = FALSE)
+
+DimPlot(data.filt, reduction = "pca", group.by= "Phase", label = FALSE, label.size=0) +
+  labs(title = "PCA after cell cycle regression") +
+  theme(plot.title = element_text(color = "steelblue4", size = 10, face = "bold"),
+  plot.subtitle = element_text(color = "orange", size = 10)) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+```
+
+After removing variances identified in the data, cell clustering using **Uniform Manifold Approximation and Projection (UMAP)** was performed. Firstly, number of principal components required for the UMAP dimensionality reduction was calculated. For this purpose, we have adapted method based on elbow plot. An elbow plo is a visualization of ranking of principle components based on the percentage of variance explained by each one. Then the optimum number of PCs needed to be chosen by taking the the point where the percent of change in variation between the consecutive PCs is less than 0.1%.
+
+```{r, warning=FALSE,message=FALSE,fig.align = "center",fig.cap="Figure 14: Elbow plot to choose number of PCs for UMAP", echo=FALSE,fig.height=5, fig.width=7}
+
+ElbowPlot(data.filt,ndims = 50)
+```
+
+From the above elbow plot, it can be seen that majority of the true signal has been captured in the first 40 PCs. So we have used first 40 PCs in the dimensionality reduction using UMAP.
+
+```{r,results="hide",warning=FALSE,message=FALSE,fig.align = "center",fig.cap="Figure 15: UMAP clustering of the cells using 40 PCs", echo=FALSE,fig.height=6, fig.width=8}
+data.filt <- FindNeighbors(object = data.filt, dims = 1:40)
+data.filt <- FindClusters(object = data.filt, resolution = seq(0.05,2,0.05)) 
+sapply(grep("res",colnames(data.filt@meta.data),value = TRUE), function(x) length(unique(data.filt@meta.data[,x])))
+Idents(object = data.filt) <- "RNA_snn_res.0.8"
+data.filt <- RunUMAP(data.filt,reduction = "pca",dims = 1:40,seed.use=123)
+#pdf("Results/UMAP_Clusters.pdf")
+DimPlot(data.filt,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+#dev.off()
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Clusters.pdf")
+DimPlot(data.filt,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+dev.off()
+```
+
+```{r}
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Clusters.pdf")
+DimPlot(data.filt,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+dev.off()
+```
+Number of cells in each cluster,
+```{r,echo=FALSE}
+library(tidyr)
+n_cells_data.filt <- FetchData(data.filt,vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+n_cells_data.filt
+```
+
+### Marker Genes of Clusters
+Next step is to assign celltypes to the identified clusters. First conserved markers for each clusters were found and mapped with markers of various cell types. Markers with large difference in expression (between pct.1 and pct.2) and larger fold changes were considered for cell type identification. 
+
++ pct.1: The percentage of cells where the gene is detected in the cluster
++ pct.2: The percentage of cells where the gene is detected on average in the other clusters
++ p_val: p-value not adjusted for multiple test correction
++ p_val_adj: Adjusted p-value, based on bonferroni correction using all genes in the dataset, used to determine significance
+
+First markers which are differentially expressed in each group by comparing it to other are found using **FindAllMarkers** function. Note that markers may bleed over between closely-related groups, they are not forced to be specific to only one group. The list can be found in **Main_Markers_All_Clusters.txt** and **Top10_Markers_All_Clusters.txt**
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+library(dplyr)
+DefaultAssay(data.filt) <- "RNA"
+all_genes <- rownames(x = data.filt)
+data.filt <- ScaleData(object = data.filt, features = all_genes)
+combined_markers <- FindAllMarkers(object = data.filt, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 1)
+write.table(combined_markers,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Markers_All_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+
+all_genes <- rownames(x = data.filt)
+data.filt <- ScaleData(object = data.filt, features = all_genes)
+#heatmap for top25 combined_markers
+top10 <- combined_markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+top25 <- combined_markers %>% group_by(cluster) %>% top_n(n = 25, wt = avg_log2FC)
+write.table(top25,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top_25_Markers_All_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+DoHeatmap(data.filt, features = top10$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 5))
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top_10_Markers_All_Clusters.pdf",height = 8,width = 12)
+DoHeatmap(data.filt, features = top10$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 4))
+dev.off()
+save.image("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/BloodData.RData")
+
+```
+
+### Cell Type Identification
+Given below marker genes were checked for cell type identification.
+
+ + Neutrophils  : FCGR3B, CD16, CD16b, CXCR2, CD182, CMKAR2, IL8RB, CXCL8, IFITM2, CSF3R, S100A8, S100A9, ITGAM, CD11b, LTF, CAMP, CEACAM8, PADI4
+ + Eosinophils  : CCR3, CD193, CKR3, CMKBR3, CEACAM8, ITGAM, CD11b, no expression of FCGR3B
+ + Basophils    : LAMP1(CD107a), CD164, IL3RA
+ + NK           : KIR3DL1, KLRK1, KIR2DL4
+ + CD4 T        : CD3D, CD3E, IL7R
+ + CD8 T        : CD8A, CD8B
+ + T reg        : FOXP3
+ + gdT          : FGFBP2,
+ + MAIT         : KLRB1, SLC4A10
+ + B cell       : MS4A1(CD20), CD83, Pax5
+ + Monocytes    : CD14,
+ + cDC          : CLEC9A, HLA-DQ
+ + pDC          : CLEC4C
+ + fibroblasts  : COL3A1,COL1A1
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 18: Marker gene expression for neutrophils. Cluster 2 is identified as neutrophils", echo=FALSE,fig.height=8, fig.width=5}
+
+feats <- c("CLEC4C","MZB1")
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/pDCs_feature.pdf")
+FeaturePlot(data.filt, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+dev.off()
+#RidgePlot(data.filt, features = feats, ncol = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/pDCs_violin.pdf")
+VlnPlot(data.filt, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 19: Marker gene expression for eosinophils. Eosinophils did not detected", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("VCAN") # eosinophils ?
+FeaturePlot(data.filt, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+RidgePlot(data.filt, features = feats, ncol = 1)
+VlnPlot(data.filt, features = feats, ncol = 1,pt.size = 0)
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 20: Marker gene expression for basophils. Cluster 12 detected as basophils", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("LAMP1","CD164","IL3RA") # basophils
+pdf("Results/Basophils_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 1)
+pdf("Results/Basophils_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 21: Marker gene expression for NK cells. Cluster 3 detected as basophils", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("NCAM1","KLRD1") # NK cells
+pdf("Results/NKcells_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 1)
+pdf("Results/NKcells_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 22: Marker gene expression for CD4+ T cells. Cluster 0,1,5,6,7,11 detected as CD4+ T cells", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("CD3D","CD3E","IL7R") # CD4 T
+pdf("Results/CD4_Tcells_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 2)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 1)
+pdf("Results/CD4_Tcells_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 23: Marker gene expression for CD8+ T cells. Not detected", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("CD8A", "CD8B") # CD8 T ?
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 2)
+RidgePlot(combined, features = feats, ncol = 1)
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 24: Marker gene expression for B cells. Cluster 8 detected as B cells", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("MS4A1") # B cell
+pdf("Results/Bcells_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 1)
+pdf("Results/Bcells_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 25: Marker gene expression for Monocytes. Cluster 4 detected as Monocytes", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("CD14") # Monocytes
+pdf("Results/Monocytes_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 1)
+pdf("Results/Monocytes_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 26: Marker gene expression for fibroblasts. Cluster 9,10 detected as fibroblasts.", echo=FALSE,fig.height=8, fig.width=5}
+feats <- c("COL3A1","COL1A1") # fibroblasts 
+pdf("Results/fibroblasts_feature.pdf")
+FeaturePlot(combined, reduction = "umap", features = feats, sort.cell = TRUE, min.cutoff = 'q10', label = TRUE)
+dev.off()
+RidgePlot(combined, features = feats, ncol = 2)
+pdf("Results/fibroblasts_violin.pdf")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0)
+dev.off()
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 27: UMAP after cell type identification", echo=FALSE,fig.height=8, fig.width=12}
+data.filt_labelled <- RenameIdents(object = data.filt, 
+                               "0" = "Neutrophil",
+                               "1" = "Mait Cells",
+                               "2" = "Neutrophil",
+                               "3" = "CD4+ naïve and central memory",
+                               "4" = "CD8+T cells (effector memory)",
+                               "5" = "Classical Monocytes",
+                               "6" = "CD4+ naïve and central memory",
+                               "7" = "mDC3",
+                               "8" = "Bcells",
+                               "9" = "CD8+T cells (effector memory)",
+                               "10" = "Classical Monocytes",
+                               "11" = "Neutrophil",
+                               "12" = "CD8+T cells (effector memory)",
+                               "13" = "Classical Monocytes",
+                               "14" = "CD4+Treg cells",
+                               "15" = "Monocytes",
+                               "16" = "Myeloid DCs",
+                               "17" = "Fibroblasts",
+                               "18" = "pDCs",
+                               "19" = "Neutrophil")
+
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Annotated_2.pdf")
+DimPlot(object = data.filt_labelled, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 3, pt.size = 0.001,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+#write.table(XX$data,file="Results/UMAP_splitted.txt",sep="\t",col.names = NA,quote = FALSE)
+
+#dev.off()
+data.filt_labelled <- NormalizeData(data.filt_labelled, normalization.method = "LogNormalize", scale.factor = 10000)
+write.table(data.filt_labelled[["RNA"]]@data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Normalized_data.txt",sep="\t",col.names = NA,quote = FALSE)
+library(tidyr)
+n_cells_data.filt <- FetchData(data.filt_labelled,vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+n_cells_data.filt
+```
+```{r}
+library(tidyr)
+n_cells_data.filt <- FetchData(data.filt_labelled,vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+write.table(as.data.frame(n_cells_data.filt),file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CellCount.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 28: Genes expressed in Tissue compared to Blood(CD4+_TCells)", echo=FALSE,fig.height=8, fig.width=5}
+
+data.filt_labelled <- ScaleData(object = data.filt_labelled, features = all_genes)
+combined_markers_label <- FindAllMarkers(object = data.filt_labelled, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 1)
+write.table(combined_markers_label,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Markers_All_Clusters_Annotated.txt", sep="\t",col.names = NA,quote = FALSE)
+
+save.image("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/BloodData.RData")
+```
+
+```{r, eval=FALSE,warning=FALSE,message=FALSE, fig.cap="Figure 28: Genes expressed in Tissue compared to Blood(CD4+_TCells)", echo=FALSE,fig.height=8, fig.width=5}
+data.filt_Neutrophil <- subset(data.filt_labelled, idents = "Neutrophil")
+
+ElbowPlot(data.filt_Neutrophil,ndims = 50)
+
+```
+
+```{r}
+#data.filt_Neutrophil <- FindNeighbors(object = data.filt_Neutrophil, dims = 1:50)
+#data.filt_Neutrophil <- FindClusters(object = data.filt_Neutrophil, resolution = seq(0.05,2,0.05)) 
+#sapply(grep("res",colnames(data.filt_Neutrophil@meta.data),value = TRUE), function(x) length(unique(data.filt_Neutrophil@meta.data[,x])))
+Idents(object = data.filt_Neutrophil) <- "RNA_snn_res.0.35"
+data.filt_Neutrophil <- RunUMAP(data.filt_Neutrophil,reduction = "pca",dims = 1:50,seed.use=123)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Clusters_Neutrophil_2.pdf")
+DimPlot(object = data.filt_Neutrophil, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 5, pt.size = 0.5,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+```
+
+```{r}
+library(dplyr)
+#load("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/BloodData.RData")
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+DefaultAssay(data.filt_Neutrophil) <- "RNA"
+all_genes <- rownames(x = data.filt_Neutrophil)
+data.filt_Neutrophil <- ScaleData(object = data.filt_Neutrophil, features = all_genes)
+combined_markers_N <- FindAllMarkers(object = data.filt_Neutrophil, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 1)
+write.table(combined_markers_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Markers_All_Clusters_Neutrophils-All_2.txt", sep="\t",col.names = NA,quote = FALSE)
+
+
+#heatmap for top25 combined_markers
+top10_N <- combined_markers_N %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+top25_N <- combined_markers_N %>% group_by(cluster) %>% top_n(n = 25, wt = avg_log2FC)
+write.table(top25_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top_25_Markers_Neutrophil_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+#DoHeatmap(data.filt_Neutrophil, features = top10_N$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 5))
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top_10_Markers_Neutrophil_Clusters_2.pdf",height = 8,width = 10)
+DoHeatmap(data.filt_Neutrophil, features = top10_N$gene,label = TRUE,group.bar = TRUE,size = 5) + 
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(4.3,4,4.3,4, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=6) )
+dev.off()
+
+```
+
+```{r}
+feats <- c("CD177") # basophils
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CD177_Neutrophil.pdf")
+FeaturePlot(data.filt_Neutrophil, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1,pt.size=2)+
+  theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,2,2,2, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+RidgePlot(data.filt_Neutrophil, features = feats, ncol = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CD177_Neutrophil_Violin.pdf")
+VlnPlot(data.filt_Neutrophil, features = feats, ncol = 1,pt.size = 2)+
+  theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,2,2,2, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+```
+
+```{r}
+feats <- c("GPR183") # basophils
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/GPR183_Neutrophil.pdf")
+FeaturePlot(data.filt_Neutrophil, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1,pt.size=2)+
+  theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,2,2,2, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+RidgePlot(data.filt_Neutrophil, features = feats, ncol = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/GPR183_Neutrophil_Violin.pdf")
+VlnPlot(data.filt_Neutrophil, features = feats, ncol = 1,pt.size = 2)+
+  theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,2,2,2, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+dev.off()
+```
+
+
+
+```{r}
+DimPlot(data.filt_Neutrophil,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+
+XX=DimPlot(object = data.filt_labelled, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 3, pt.size = 0.001,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+
+write.table(XX$data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Clusters.txt",sep="\t",col.names = NA,quote = FALSE)
+
+YY=DimPlot(data.filt_Neutrophil,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+write.table(YY$data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Neutro.txt",sep="\t",col.names = NA,quote = FALSE)
+
+```
+
+
+
+```{r}
+write.table(data.filt_labelled@reductions$umap@cell.embeddings,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+CELL=as.data.frame(data.filt_labelled@active.ident)
+write.table(CELL,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Cell_info.txt",sep="\t",col.names = NA,quote = FALSE)
+write.table(data.filt_labelled@meta.data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/MetaData.txt",sep="\t",col.names = NA,quote = FALSE)
+
+
+write.table(data.filt_Neutrophil@reductions$umap@cell.embeddings,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Neutro.txt",sep="\t",col.names = NA,quote = FALSE)
+CELL_N=as.data.frame(data.filt_Neutrophil@active.ident)
+write.table(CELL_N,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Cell_info_Neutro.txt",sep="\t",col.names = NA,quote = FALSE)
+write.table(data.filt_Neutrophil@meta.data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/MetaData_Neutro.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/MetaData.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/UMAP_Pre.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=CellType),size=0.4,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("CD4+ naïve and central memory"="#3232ff","CD4+Treg cells"="#ffd700","CD8+T cells (effector memory)"="#d03330",
+                              "Classical Monocytes"="#a25526","Fibroblasts"="#737373","Mait Cells"="#5cb99c","mDC3"="#8a4f95",
+                              "Monocytes"="#53a341","Myeloid DCs"="#065535","Neutrophil"="#e87b1f","pDCs"="#f7347a","Bcells"="#b7b81c"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(2,0.5,10,0.5, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+```{r}
+library(ggplot2)
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/MetaData.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/UMAP_Post.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=CellType2),size=0.4,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("CD4+ naïve and central memory"="#3232ff","CD4+Treg cells"="#ffd700","CD8+T cells (effector memory)"="#d03330",
+                              "Classical Monocytes"="#a25526","Fibroblasts"="#737373","Mait Cells"="#5cb99c","mDC3"="#8a4f95",
+                              "Monocytes"="#53a341","Myeloid DCs"="#065535",
+                              "pDCs"="#f7347a","Bcells"="#b7b81c","Neutrophil_0"="#e87b1f","Neutrophil_1"="#37caff","Neutrophil_2"="#ee82ee","Neutrophil_3"="#4682b4","Neutrophil_4"="#264356"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(2,0.5,10,0.5, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+
+```{r}
+top10_N <- combined_markers_N %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+XX=DoHeatmap(data.filt_Neutrophil, features = top10_N$gene,label = TRUE,group.bar = TRUE,size = 5) + 
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(4.3,4,4.3,4, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=6) )
+
+write.table(XX$data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top15_Neutrophil.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+library(reshape)
+DAT=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top15_Neutrophil.txt",sep="\t")
+Re <- reshape::cast(DAT,fun.aggregate=mean)
+write.table(Re,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Top15_Neutrophil_catsed.txt",sep="\t",quote = FALSE,row.names = F)
+
+```
+
+```{r}
+library(ComplexHeatmap)
+library(circlize)
+CelFr=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Heatmap/GeneDataT_NeutroT_ordered.txt",header = TRUE,check.names = FALSE,row.names = 1)
+col_fun1 = colorRamp2(c(-3, -1,0, 1,3), c("#004C00","#008000","white","#E50000","#7F0000"))
+sample=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Heatmap/Info.txt",row.names = 1)
+
+ha = HeatmapAnnotation(df = sample,show_annotation_name = FALSE,simple_anno_size = unit(0.2, "cm"),
+                       annotation_legend_param = list(Cluster = list(direction = "horizontal",grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10))),
+                       col = list(Cluster=c("Neutrophil_0"="#e87b1f","Neutrophil_1"="#37caff","Neutrophil_2"="#ee82ee","Neutrophil_3"="#4682b4","Neutrophil_4"="#264356")))
+gene=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Heatmap/Top_Gene.txt",row.names = 1)
+H1=Heatmap(t(scale(t(CelFr), center = TRUE, scale = TRUE)),cluster_columns = FALSE,show_column_names = FALSE,col = col_fun1,top_annotation = ha,row_split =gene$cls,
+           column_dend_height = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),column_split =sample$Cluster,cluster_rows = FALSE,row_title_gp = gpar(fontsize = 0),
+           heatmap_legend_param =list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10),
+                                      labels_gp = gpar(fontsize = 10)),
+           name = "Zscore",show_row_names = TRUE,row_names_gp=gpar(fontsize = 5),height  = unit(9, "cm"),width  = unit(13, "cm"))
+
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/Neutrophil_Heatmap_top15.pdf")
+draw(H1,heatmap_legend_side = "right", annotation_legend_side = "right",merge_legend = TRUE)
+dev.off()
+
+```
+
+
+```{r}
+library(reshape)
+DAT=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/SigniBp.txt",sep="\t")
+Re <- reshape::cast(DAT,fun.aggregate=mean)
+write.table(Re,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/SigniBp_casted",sep="\t",quote = FALSE,row.names = F)
+```
+
+```{r}
+
+CelFr=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/Signi_KEGGCasted.txt",header = TRUE,check.names = FALSE,row.names = 1)
+
+col_fun1 = colorRamp2(c(0,1,3,5,7,8), c("#d8d8d8","#b26666","#a64c4c","#730000","#660000","#590000"))
+sample=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/Info.txt",row.names = 1)
+
+ha = HeatmapAnnotation(df = sample,show_annotation_name = FALSE,simple_anno_size = unit(0.2, "cm"),
+                       annotation_legend_param = list(Cluster = list(direction = "horizontal",grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10))),
+                       col = list(Cluster=c("Neutrophil_0"="#e87b1f","Neutrophil_1"="#37caff","Neutrophil_2"="#ee82ee","Neutrophil_3"="#4682b4","Neutrophil_4"="#264356")))
+
+H1=Heatmap(as.matrix(CelFr),cluster_columns = FALSE,show_column_names = FALSE,col = col_fun1,top_annotation = ha,na_col = "#d8d8d8",
+           column_dend_height = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),cluster_rows = TRUE,row_title_gp = gpar(fontsize = 0),
+           heatmap_legend_param =list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10),
+                                      labels_gp = gpar(fontsize = 10)),
+           name = "-log10(p.adj)",show_row_names = TRUE,row_names_gp=gpar(fontsize = 8),height  = unit(9, "cm"),width  = unit(4, "cm"))
+
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/KEGG.pdf")
+draw(H1,heatmap_legend_side = "right", annotation_legend_side = "right",merge_legend = TRUE)
+dev.off()
+
+```
+
+
+```{r}
+
+CelFr=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/SigniBp_casted",header = TRUE,check.names = FALSE,row.names = 1)
+
+col_fun1 = colorRamp2(c(0,1,20,30,50,100), c("#d8d8d8","#b26666","#a64c4c","#730000","#660000","#590000"))
+sample=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutrophilKEGG/Info.txt",row.names = 1)
+
+ha = HeatmapAnnotation(df = sample,show_annotation_name = FALSE,simple_anno_size = unit(0.5, "cm"),
+                       annotation_legend_param = list(Cluster = list(direction = "horizontal",grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10))),
+                       col = list(Cluster=c("Neutrophil_0"="#e87b1f","Neutrophil_1"="#37caff","Neutrophil_2"="#ee82ee","Neutrophil_3"="#4682b4","Neutrophil_4"="#264356")))
+
+H1=Heatmap(as.matrix(CelFr),cluster_columns = FALSE,show_column_names = FALSE,col = col_fun1,top_annotation = ha,na_col = "#d8d8d8",
+           column_dend_height = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),cluster_rows = TRUE,row_title_gp = gpar(fontsize = 0),
+           heatmap_legend_param =list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10),
+                                      labels_gp = gpar(fontsize = 10)),
+           name = "-log10(p.adj)",show_row_names = TRUE,row_names_gp=gpar(fontsize = 14),height  = unit(35, "cm"),width  = unit(7, "cm"))
+
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/BP.pdf",width = 22,height = 17)
+draw(H1,heatmap_legend_side = "left", annotation_legend_side = "left",merge_legend = TRUE)
+dev.off()
+
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+ip=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/NeutroPatientPerc.txt",header = TRUE)
+M=melt(ip)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/Neutrophil_PatientPerc.pdf")
+ggplot() + 
+  geom_point(data=M,aes(x=Patient_ID,y=variable,size=value),color="#4682B4")+theme_bw()+
+  scale_size_continuous( breaks=seq(0, 50, by=5))+
+  theme(axis.title = element_blank(),axis.text.y = element_text(size=8,color="black"),axis.text.x = element_text(size=8,color="black"),
+       plot.margin = margin(6,3,8,4, "cm"), legend.key.size = unit(0.7,"line"),legend.text = element_text(size=8,colour = "black"),legend.position = "right",
+        legend.title = element_text(size=9))+
+  guides(size=guide_legend(override.aes=list(fill="#4682B4",color="#4682B4"),title = "Percentage of cells",ncol = 1))
+dev.off()
+```
+
+
+```{r}
+library(ggplot2)
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAP_Neutro.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/UMAP_neutrophilsAlone.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=Cluster),size=0.5,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("Neutrophil_0"="#e87b1f","Neutrophil_1"="#37caff","Neutrophil_2"="#ee82ee","Neutrophil_3"="#4682b4","Neutrophil_4"="#264356"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,6,7,6, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"),legend.position = c(0.85,0.2))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+```{r}
+library(reshape2)
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CellCount.txt")
+data$CellType <- factor(data$CellType, levels = data$CellType)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/CellCount.pdf")
+ggplot(data, aes(fill=Count, y=Count, x=CellType)) + ylab("Number of cells")+coord_flip()+
+  scale_fill_gradientn(colours=c('#a3a3c9','#191978'))+
+  geom_bar(position="dodge", stat="identity")+
+  theme(axis.text.x = element_text(),plot.margin = margin(5,3,5,3, "cm"),axis.title.y = element_blank(),
+        legend.title = element_blank())
+dev.off()  
+```
+
+```{r}
+#seurat_c1_full_FG <- readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/HEalthy/seurat_COVID19_PBMC_cohort1_10x_jonas_FG_2020-08-15.rds")
+ggplot(seurat_c1_full_FG@meta.data, aes(x = group_per_sample , fill= purification))+
+  geom_bar()+
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5))+
+  theme_classic()+
+  theme(
+    panel.grid=element_blank(),
+    legend.text=element_text(size=10),
+    text = element_text(size=12),
+    legend.title = element_blank(),
+    axis.title.x = element_blank()
+  )+  
+  ylab("# of cells")+
+  
+  RotatedAxis()
+
+HC_ids <- rownames(seurat_c1_full_FG@meta.data[which(seurat_c1_full_FG@meta.data$group_per_sample == "control"),])
+HC<- subset(seurat_c1_full_FG, cells = HC_ids)
+
+```
+
+
+```{r}
+HC_ids <- rownames(seurat_c1_full_FG@meta.data[which(seurat_c1_full_FG@meta.data$group_per_sample == "control"),])
+HC<- subset(seurat_c1_full_FG, cells = HC_ids)
+
+alldata <- merge(HC, data.filt_labelled, add.cell.ids=c("HC","Blood"),project = "Psoriasis")
+
+alldata@meta.data$GROUP <- NA 
+alldata@meta.data$GROUP[which(str_detect(row.names(alldata@meta.data), "^HC_"))] <- "HC"
+alldata@meta.data$GROUP[which(str_detect(row.names(alldata@meta.data), "^Blood_"))] <- "Blood"
+alldata <- PercentageFeatureSet(alldata, "^MT-", col.name = "mitochondrial")
+alldata <- PercentageFeatureSet(alldata, "^RP[SL]", col.name = "ribosomal")
+
+alldata@meta.data %>% 
+  ggplot(aes(x=GROUP, fill=GROUP)) + 
+  geom_bar() +
+  theme_classic() +
+  theme(text = element_text(size=15),axis.title.x = element_blank()) +
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  labs(title = "Number of cells per condition",
+       subtitle = "Determined by number of unique cellular barcodes detected")+
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold"),
+  plot.subtitle = element_text(color = "orange", size = 9),
+  plot.caption = element_text(color = "green", size = 6, face = "italic")) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), plot.caption = element_text(hjust = 1))
+write.table(alldata@meta.data,file="/home/anoop/Desktop/Avinash/FINAL_Analysis/HEalthy/Test.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+
+```{r}
+Idents(seurat_c1_full_FG)<-"RNA_snn_res.0.4"
+seurat_c1_full_FG <- RenameIdents(seurat_c1_full_FG,
+
+                      `0`="Classical Monocytes",
+                      `7`="HLA-DR+ CD83+ Monocytes",
+                      `12`="CD163+ Monocytes (1_d7)",
+                      `6`="HLA-DR- S100A+ Monocytes",
+                      `8`="Non-classical Monocytes",
+                      `11`="Neutrophils",  
+                      `13`="Immature Neutrophils",
+                      `17`="mDCs",
+                      `18`="pDCs",
+                      `1`="CD4+ T",
+                      `3`="CD4+ T",
+                      `10`="CD4+ T",
+                      `2`="CD8+ T",
+                      `15`="CD8+ T",
+                      `9`="CD8+ T",
+                      `4`="NK",
+                      `5`="B",
+                      `19`="B",
+                      `20`="B",
+                      `16`="Plasmablasts",
+                      `14`="Megakaryocyte",
+                      `21`="mixed",
+                      `22`="undefined"
+)
+DimPlot(seurat_c1_full_FG, reduction = "umap", split.by = "group_per_sample",label = TRUE) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)")+ 
+  theme(plot.title = element_text(color = "steelblue4", size = 10, face = "bold",hjust = 0.5))
+```
+
+
+
+```{r}
+library(reshape2)
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Untitled Folder/Filtered.txt")
+head(data)
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/TopNeutrophil.pdf",width = 15,height = 10)
+ggplot(data, aes(color=avg_log2FC, y=gene, x=cluster,size=`pct.1`)) + geom_point()+ylab("Number of cells")+
+  scale_color_continuous(low="#3f75a2",high="#ff0000",guide = "colourbar",breaks=c(-3,-2,-1,0,1,2,3,5,7))+
+  theme(plot.margin = margin(0.2,15,0.5,15, "cm"),axis.title.y = element_blank(),axis.text.y = element_text(color="black"),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1,size=12,colour = "black"),axis.title = element_blank(),
+        legend.title = element_blank())
+dev.off()  
+```
+
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+ip=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Neutro_Patient_Perc_2.txt",header = TRUE)
+M=melt(ip)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/Neutrophil_PatientPerc_2.pdf")
+ggplot() + 
+  geom_point(data=M,aes(x=Patient_ID,y=variable,size=value),color="#9ea78f")+theme_bw()+
+  scale_size_continuous( breaks=seq(0, 100, by=20))+
+  theme(axis.title = element_blank(),axis.text.y = element_text(size=8,color="black"),axis.text.x = element_text(size=8,color="black"),
+       plot.margin = margin(6,3,8,4, "cm"), legend.key.size = unit(0.7,"line"),legend.text = element_text(size=8,colour = "black"),legend.position = "right",
+        legend.title = element_text(size=9))+
+  guides(size=guide_legend(override.aes=list(fill="#9ea78f",color="#9ea78f"),title = "Percentage of cells",ncol = 1))
+dev.off()
+```
+
+
+```{r}
+library(ggplot2)
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/MetaData_Neutro.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/Final/UMAP_neutrophilsG2M.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=`G2M.Score`),size=1.5,shape=19)+
+  theme_bw()+
+  scale_color_continuous(low="#3f75a2",high="#ff0000",guide = "colourbar")+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,6,7,6, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"),legend.position = c(0.85,0.2))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+
+
+
+
+```{r}
+feats <- c("CD177","GPR183") # fibroblasts 
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CD177.pdf")
+VlnPlot(data.filt_labelled, features = feats, ncol= 1,pt.size = 1)
+dev.off()
+```
+
+```{r}
+feats <- c("CD177","GPR183") # fibroblasts 
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CD177_neutrophil.pdf")
+VlnPlot(data.filt_Neutrophil, features = feats, ncol= 1,pt.size = 1)
+dev.off()
+```
+
+
+```{r}
+feats <- c("FCGR3B","CXCR2") # fibroblasts 
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/FCGR3B_CXCR2.pdf")
+VlnPlot(data.filt_labelled, features = feats, ncol= 1,pt.size = 0.5)
+dev.off()
+```
+
+```{r}
+feats <- c("CXCL8","IFITM2") # fibroblasts 
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/CXCL8_IFITM2.pdf")
+VlnPlot(data.filt_labelled, features = feats, ncol= 1,pt.size = 0.5)
+dev.off()
+```
+
+
+```{r}
+#load(file = "/home/anoop/Desktop/Avinash/FINAL_Analysis/HEalthy/neu_H.i.Robj")
+DimPlot(neu_H.i, group.by = "seurat_clusters",
+        label = T)
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/New_MetaData.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/LP79.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data,Patient="LP79"), aes(x=UMAP_1, y=UMAP_2,color=CellType),size=0.4,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("CD4+ naive and central memory"="#3232ff","CD4+Treg cells"="#ffd700","CD8+T cells (effector memory)"="#d03330",
+                              "Classical Monocytes"="#a25526","Fibroblasts"="#737373","Mait Cells"="#5cb99c","mDC3"="#8a4f95",
+                              "Monocytes"="#53a341","Myeloid DCs"="#065535","Neutrophil"="#e87b1f","pDCs"="#f7347a","Bcells"="#b7b81c"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(2,0.5,10,0.5, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/New_MetaData.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/LP85.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data,Patient=="LP85"), aes(x=UMAP_1, y=UMAP_2,color=CellType),size=0.4,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("CD4+ naive and central memory"="#3232ff","CD4+Treg cells"="#ffd700","CD8+T cells (effector memory)"="#d03330",
+                              "Classical Monocytes"="#a25526","Fibroblasts"="#737373","Mait Cells"="#5cb99c","mDC3"="#8a4f95",
+                              "Monocytes"="#53a341","Myeloid DCs"="#065535","Neutrophil"="#e87b1f","pDCs"="#f7347a","Bcells"="#b7b81c"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(2,0.5,10,0.5, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/New_MetaData.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/UMAPs/Male.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data,Sex=="Male"), aes(x=UMAP_1, y=UMAP_2,color=CellType),size=0.4,shape=19)+
+  theme_bw()+
+  scale_color_manual(values=c("CD4+ naive and central memory"="#3232ff","CD4+Treg cells"="#ffd700","CD8+T cells (effector memory)"="#d03330",
+                              "Classical Monocytes"="#a25526","Fibroblasts"="#737373","Mait Cells"="#5cb99c","mDC3"="#8a4f95",
+                              "Monocytes"="#53a341","Myeloid DCs"="#065535","Neutrophil"="#e87b1f","pDCs"="#f7347a","Bcells"="#b7b81c"))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=15), panel.grid.major = element_blank(),axis.text = element_text(size=15),
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(2,0.5,10,0.5, "cm"),
+                                  legend.title=element_text(size=15),legend.text=element_text(size=15),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7)))
+dev.off()
+```
+
+```{r}
+library(Seurat)
+DimPlot(data.filt,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+#saveRDS(data.filt, file = "Blood.rds")
+getwd()
+```
+
+
+```{r}
+load("/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood/BloodData.RData")
+```
+
+```{r}
+saveRDS(data.filt_Neutrophil, file = "/home/anoop/Desktop/Avinash/FINAL_Analysis/Neutrophil/Blood_Neutrophil.rds")
+```
+
+```{r}
+DimPlot(object = data.filt_labelled, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 3, pt.size = 0.001,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+```
+
+```{r}
+saveRDS(data.filt_labelled, file = "/home/anoop/Desktop/Avinash/FINAL_Analysis/Blood_Tissue/Blood_data.rds")
+```
+
+
+```{r}
+Blood_Final=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Blood_WZ_annotated.rds")
+```
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+Idents(object = Blood_Final) <- "WZ.celltype"
+DimPlot(object = Blood_Final, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 3, pt.size = 0.001,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+```
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+DefaultAssay(Blood_Final) <- "RNA"
+all_genes <- rownames(x = Blood_Final)
+Blood_Final <- ScaleData(object = Blood_Final, features = all_genes)
+combined_markers_N <- FindAllMarkers(object = Blood_Final, logfc.threshold = 0)
+write.table(combined_markers_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Markers_All_Clusters_Blood.txt", sep="\t",col.names = NA,quote = FALSE)
+
+
+#heatmap for top25 combined_markers
+top10_N <- combined_markers_N %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+write.table(top10_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Top_10_Markers_Blood_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Top10_Markers_Blood.pdf",height = 8,width = 10)
+DoHeatmap(Blood_Final, features = top10_N$gene,label = TRUE,group.bar = TRUE,size = 5) + 
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(4.3,4,4.3,4, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=6) )
+dev.off()
+
+```
+
+
+
+```{r}
+rm(list = ls())
+Skin_Final=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Tissue_WZ_annotated.rds")
+```
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+Idents(object = Skin_Final) <- "WZ.celltype"
+DimPlot(object = Skin_Final, 
+        reduction = "umap",
+        label = TRUE,
+        label.size = 3, pt.size = 0.001,
+        repel = TRUE)+theme(legend.position = "none",axis.title = element_text(size=10),plot.margin = margin(2,1.5,2,1.5, "cm"),
+                            panel.border = element_rect(colour = "#666666", fill=NA, size=1.5))
+```
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+DefaultAssay(Skin_Final) <- "RNA"
+all_genes <- rownames(x = Skin_Final)
+Skin_Final <- ScaleData(object = Skin_Final, features = all_genes)
+combined_markers_N <- FindAllMarkers(object = Skin_Final, logfc.threshold = 0)
+write.table(combined_markers_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Markers_All_Clusters_Skin.txt", sep="\t",col.names = NA,quote = FALSE)
+
+
+#heatmap for top25 combined_markers
+top10_N <- combined_markers_N %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+write.table(top10_N,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Top_10_Markers_Skin_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Top10_Markers_Skin.pdf",height = 8,width = 10)
+DoHeatmap(Skin_Final, features = top10_N$gene,label = TRUE,group.bar = TRUE,size = 5) + 
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(4.3,4,4.3,4, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=6) )
+dev.off()
+
+```
+
+
