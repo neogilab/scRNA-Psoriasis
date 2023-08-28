@@ -1,0 +1,1126 @@
+---
+title: "Psroiasis_Final_Figures"
+author: "Anoop Ambikan"
+date: "5/5/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Blood=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Blood_WZ_annotated.rds")
+Skin=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Tissue_WZ_annotated.rds")
+```
+
+```{r}
+#pdf("/home/anoop/Desktop/Avinash/Temp/Blood/UMAP.pdf",width = 10,height = 10)
+DimPlot(Blood,
+        reduction = "umap",group.by = c("WZ.celltype"),
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+#dev.off()
+
+
+Idents(object = Blood) <- "WZ.celltype"
+#pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.pdf",width = 10,height = 10)
+DimPlot(Blood,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+write.table(Blood@meta.data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Metadata.txt",sep="\t",quote = FALSE,col.names = NA)
+```
+
+```{r}
+Blood@meta.data[236,"WZ.celltype"]<-"N2"
+Blood@meta.data[431,"WZ.celltype"]<-"N2"
+Blood@meta.data[775,"WZ.celltype"]<-"N2"
+Blood@meta.data[1208,"WZ.celltype"]<-"N2"
+Blood@meta.data[1397,"WZ.celltype"]<-"N2"
+Blood@meta.data[1409,"WZ.celltype"]<-"N2"
+Blood@meta.data[1572,"WZ.celltype"]<-"N2"
+Blood@meta.data[2236,"WZ.celltype"]<-"N2"
+Blood@meta.data[2340,"WZ.celltype"]<-"N2"
+Blood@meta.data[2526,"WZ.celltype"]<-"N2"
+Blood@meta.data[3078,"WZ.celltype"]<-"N2"
+Blood@meta.data[3172,"WZ.celltype"]<-"N2"
+Blood@meta.data[3275,"WZ.celltype"]<-"N2"
+Blood@meta.data[3490,"WZ.celltype"]<-"N2"
+Blood@meta.data[3708,"WZ.celltype"]<-"N2"
+Blood@meta.data[4302,"WZ.celltype"]<-"N2"
+Blood@meta.data[4371,"WZ.celltype"]<-"N2"
+Blood@meta.data[4435,"WZ.celltype"]<-"N2"
+Blood@meta.data[4502,"WZ.celltype"]<-"N2"
+Blood@meta.data[4524,"WZ.celltype"]<-"N2"
+Blood@meta.data[4829,"WZ.celltype"]<-"N2"
+Blood@meta.data[5916,"WZ.celltype"]<-"N2"
+Blood@meta.data[8573,"WZ.celltype"]<-"N2"
+Blood@meta.data[8851,"WZ.celltype"]<-"N2"
+Blood@meta.data[10349,"WZ.celltype"]<-"N2"
+Blood@meta.data[10433,"WZ.celltype"]<-"N2"
+Blood@meta.data[10524,"WZ.celltype"]<-"N2"
+Blood@meta.data[10756,"WZ.celltype"]<-"N2"
+Blood@meta.data[11208,"WZ.celltype"]<-"N2"
+Blood@meta.data[11571,"WZ.celltype"]<-"N2"
+Blood@meta.data[11895,"WZ.celltype"]<-"N2"
+Blood@meta.data[11931,"WZ.celltype"]<-"N2"
+Blood@meta.data[12036,"WZ.celltype"]<-"N2"
+Blood@meta.data[12068,"WZ.celltype"]<-"N2"
+Blood@meta.data[12303,"WZ.celltype"]<-"N2"
+Blood@meta.data[12554,"WZ.celltype"]<-"N2"
+Blood@meta.data[12636,"WZ.celltype"]<-"N2"
+Blood@meta.data[12661,"WZ.celltype"]<-"N2"
+Blood@meta.data[12706,"WZ.celltype"]<-"N2"
+Blood@meta.data[13052,"WZ.celltype"]<-"N2"
+Blood@meta.data[13063,"WZ.celltype"]<-"N2"
+Blood@meta.data[13081,"WZ.celltype"]<-"N2"
+Blood@meta.data[13100,"WZ.celltype"]<-"N2"
+Blood@meta.data[13170,"WZ.celltype"]<-"N2"
+Blood@meta.data[13517,"WZ.celltype"]<-"N2"
+Blood@meta.data[13747,"WZ.celltype"]<-"N2"
+Blood@meta.data[13885,"WZ.celltype"]<-"N2"
+Blood@meta.data[14055,"WZ.celltype"]<-"N2"
+Blood@meta.data[14188,"WZ.celltype"]<-"N2"
+Blood@meta.data[14234,"WZ.celltype"]<-"N2"
+Blood@meta.data[14240,"WZ.celltype"]<-"N2"
+```
+
+```{r}
+Idents(object = Blood) <- "WZ.celltype"
+Blood_renamed <- RenameIdents(object = Blood, 
+                              "CD8 TEM" = "TCells",
+                               "Neutrophil" = "Neutrophils_1",
+                               "CD4 TCM" = "TCells",
+                               "CD4 CTL" = "TCells",
+                               "MAIT" = "TCells",
+                               "ClassicalMonocytes" = "Classical_Monocytes",
+                               "Treg" = "TCells",
+                               "CD4 TEM" = "TCells",
+                               "CD4 Naive" = "TCells",
+                               "CD8 Naive" = "TCells",
+                               "MyeloidDCs"="CD1c+/cDC2",
+                               "mDC3"="Intermediate_Monocytes",
+                               "CD8 TCM"="TCells",
+                               "Monocytes"="Non_classical",
+                               "Bcells"="Bcells",
+                               "Fibroblasts"="Fibroblasts",
+                               "pDCs"="pDCs",
+                                "N2"="Neutrophils_2")
+```
+
+
+```{r}
+Blood_renamed_2 <- subset(Blood_renamed, idents = "Fibroblasts",invert = TRUE)
+DimPlot(Blood_renamed_2,
+        reduction = "umap",
+        label = TRUE,
+        label.size =2, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+#write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+saveRDS(Blood_renamed_2,file = "/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_FINAL.rds")
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=celltype),size=0.5,shape=19)+
+  scale_color_manual(values=c("Neutrophils_1"="#FF9933","TCells"="#000DF4", "Classical_Monocytes"="#004000","Non_classical"="#008000",
+                              "Bcells"="#68a3db","CD1c+/cDC2"="#521515","Intermediate_Monocytes"="#99cc99",
+                              "pDCs"="#c06969","Neutrophils_2"="#e12885"))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(6,1,6,1, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+```{r,echo=FALSE}
+library(tidyr)
+n_cells_data.filt <- FetchData(Blood_renamed_2,vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+
+write.table(as.data.frame(n_cells_data.filt),file="Cell_Count_Blood.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+Blood_renamed_2=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_FINAL.rds")
+library(dplyr)
+DefaultAssay(Blood_renamed_2) <- "RNA"
+all_genes_tissue <- rownames(x = Blood_renamed_2)
+Blood_renamed_2 <- ScaleData(object = Blood_renamed_2, features = all_genes_tissue)
+combined_markers_tissue <- FindAllMarkers(object = Blood_renamed_2, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+write.table(combined_markers_tissue,"All_Markers_All_Clusters_Blood_NEW.txt", sep="\t",col.names = NA,quote = FALSE)
+
+
+#heatmap for top25 combined_markers
+top10_tissue <- combined_markers_tissue %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+write.table(top10_tissue,"Top_10_Markers_All_Clusters_blood_NEW.txt", sep="\t",col.names = NA,quote = FALSE)
+DoHeatmap(Blood_renamed_2, features = top10_tissue$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 5))
+pdf("Top_10_Markers_All_Clusters_blood.pdf",height = 8,width = 12)
+DoHeatmap(Blood_renamed_2, features = top10_tissue$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 4))
+dev.off()
+
+```
+
+
+```{r}
+pdf("Top_10_Markers_All_Clusters_blood.pdf",height = 8,width = 10)
+DoHeatmap(Blood_renamed_2, features =top10_tissue$gene,label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("Neutrophils_1"="#FF9933","TCells"="#000DF4","Neutrophils_2"="#e12885",
+                                                                                                          "Classical_Monocytes"="#004000","Non_classical"="#008000",
+                              "Bcells"="#68a3db","CD1c+/cDC2"="#521515","Intermediate_Monocytes"="#99cc99","pDCs"="#c06969")) + 
+  scale_color_manual(values=c("Neutrophils_1"="#FF9933","TCells"="#000DF4", "Classical_Monocytes"="#004000","Non_classical"="#008000",
+                              "Bcells"="#68a3db","CD1c+/cDC2"="#521515","Intermediate_Monocytes"="#99cc99","pDCs"="#c06969","Neutrophils_2"="#e12885"))+scale_fill_gradientn(colors = c("#590059", "white", "#4682b4"))+
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(3.5,2.5,3.5,2.5, "cm"),panel.border=element_blank(),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=4) )
+
+dev.off()
+
+```
+?DoHeatmap
+```{r}
+feats <- c("FCGR3B")
+FeaturePlot(Blood_renamed_2, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = FALSE,ncol = 1)
+
+VlnPlot(Blood_renamed_2, features = feats, ncol = 1,pt.size = 0.1)
+
+Blood_renamed_2 <- NormalizeData(Blood_renamed_2, normalization.method = "LogNormalize", scale.factor = 10000)
+write.table(Blood_renamed_2[["RNA"]]@data,file="Blood_Normalized_data.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_Normalized_MarkersM.txt",row.names = 1,sep=",")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_Neutrophils_FCGR3B.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Neutrophils" & FCGR3B > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Neutrophils" & FCGR3B == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Neutrophils" & FCGR3B == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Neutrophils" & FCGR3B > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_Tcells_CD3D.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "TCells" & CD3D > 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "TCells" & CD3D == 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "TCells" & CD3D == 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "TCells" & CD3D > 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_classical_Mo_CD14.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Classical_Monocytes" & CD14 > 0),aes(x=UMAP_1, y=UMAP_2,color=CD14),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Classical_Monocytes" & CD14 == 0),aes(x=UMAP_1, y=UMAP_2,color=CD14),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Classical_Monocytes" & CD14 == 0),aes(x=UMAP_1, y=UMAP_2,color=CD14),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Classical_Monocytes" & CD14 > 0),aes(x=UMAP_1, y=UMAP_2,color=CD14),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_Non_classical_Mo_FCGR3A.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Non_classical" & FCGR3A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Non_classical" & FCGR3A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Non_classical" & FCGR3A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Non_classical" & FCGR3A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_Bcells_MS4A1.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Bcells" & MS4A1 > 0),aes(x=UMAP_1, y=UMAP_2,color=MS4A1),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Bcells" & MS4A1 == 0),aes(x=UMAP_1, y=UMAP_2,color=MS4A1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Bcells" & MS4A1 == 0),aes(x=UMAP_1, y=UMAP_2,color=MS4A1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Bcells" & MS4A1 > 0),aes(x=UMAP_1, y=UMAP_2,color=MS4A1),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_CD1c_cDC2_FCER1A.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "CD1c+/cDC2" & FCER1A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCER1A),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "CD1c+/cDC2" & FCER1A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCER1A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "CD1c+/cDC2" & FCER1A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCER1A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "CD1c+/cDC2" & FCER1A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCER1A),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_pDCs_CLEC4C.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "pDCs" & CLEC4C > 0),aes(x=UMAP_1, y=UMAP_2,color=CLEC4C),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "pDCs" & CLEC4C == 0),aes(x=UMAP_1, y=UMAP_2,color=CLEC4C),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "pDCs" & CLEC4C == 0),aes(x=UMAP_1, y=UMAP_2,color=CLEC4C),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "pDCs" & CLEC4C > 0),aes(x=UMAP_1, y=UMAP_2,color=CLEC4C),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,3,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+```{r}
+#pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.pdf",width = 10,height = 10)
+XX=DimPlot(Skin,
+        reduction = "umap",group.by = c("WZ.celltype"),
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/NEW_UMAP/Skin.txt",sep="\t",col.names = NA,quote = FALSE)
+#dev.off()
+```
+
+```{r}
+Idents(object = Skin) <- "WZ.celltype"
+Skin_renamed <- RenameIdents(object = Skin, 
+                             "CD4 TCM" = "TCells",
+                             "CD4 TEM" = "TCells",
+                             "CD8 Naive" = "TCells",
+                             "CD8 Proliferating" = "TCells",
+                             "CD8 TEM" = "TCells",
+                             "Fibroblast" = "Fibroblast",
+                             "Keratinocytes" = "Keratinocytes",
+                             "Macrophages" = "Macrophages",
+                             "MAIT" = "TCells",
+                             "Neutrophils"= "Neutrophils",
+                             "NK_cells" = "TCells",
+                             "Treg" = "TCells",
+                             "Undefined" = "Antigen_presenting_neutrophils")
+```
+
+
+```{r}
+
+DimPlot(Skin_renamed,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+#write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+
+```
+
+
+```{r}
+saveRDS(Skin_renamed,file = "/home/anoop/Desktop/Avinash/Final_Figures_V2/SKIN_FINAL.rds")
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=celltype),size=0.5,shape=19)+
+  scale_color_manual(values=c("Neutrophils"="#FF9933","TCells"="#000DF4","Macrophages"="#b2b200",
+                              "Antigen_presenting_neutrophils"="#e12885","Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2"))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(6,1,6,1, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+```{r}
+feats <- c("CXCL8")
+FeaturePlot(Skin_renamed, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = TRUE,ncol = 1)
+
+VlnPlot(Skin_renamed, features = feats, ncol = 1,pt.size = 0.1)
+
+#Skin_renamed <- NormalizeData(Skin_renamed, normalization.method = "LogNormalize", scale.factor = 10000)
+#write.table(Skin_renamed[["RNA"]]@data,file="Skin_Normalized_data.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+library(dplyr)
+DefaultAssay(Skin_renamed) <- "RNA"
+all_genes_skin <- rownames(x = Skin_renamed)
+Skin_renamed <- ScaleData(object = Skin_renamed, features = all_genes_skin)
+combined_markers_tissue <- FindAllMarkers(object = Skin_renamed, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+write.table(combined_markers_tissue,"All_Markers_All_Clusters_Skin.txt", sep="\t",col.names = NA,quote = FALSE)
+
+
+#heatmap for top25 combined_markers
+top10_skin <- combined_markers_tissue %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+write.table(top10_skin,"Top_10_Markers_All_Clusters_Skin.txt", sep="\t",col.names = NA,quote = FALSE)
+DoHeatmap(Skin_renamed, features = top10_skin$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 5))
+pdf("Top_10_Markers_All_Clusters_Skin.pdf",height = 8,width = 12)
+DoHeatmap(Skin_renamed, features = top10_skin$gene,label = TRUE,group.bar = TRUE) + NoLegend() + theme(text = element_text(size = 4))
+dev.off()
+
+```
+
+
+
+```{r}
+pdf("Top_10_Markers_All_Clusters_Skin.pdf",height = 8,width = 10)
+DoHeatmap(Skin_renamed, features =top10_skin$gene,label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("Neutrophils"="#FF9933","TCells"="#000DF4","Macrophages"="#b2b200",
+                              "Antigen_presenting_neutrophils"="#e12885","Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2")) + 
+  scale_color_manual(values=c("Neutrophils"="#FF9933","TCells"="#000DF4","Macrophages"="#b2b200",
+                              "Antigen_presenting_neutrophils"="#e12885","Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2"))+
+  scale_fill_gradientn(colors = c("#590059", "white", "#4682B4"))+
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(5,2.5,5,2.5, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=4),panel.border = element_blank() )
+
+dev.off()
+
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Normalized_MarkersM.txt",row.names = 1,sep=",")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Antigen_presenting_neutrophils_SLC7A11.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Antigen_presenting_neutrophils" & SLC7A11 > 0),aes(x=UMAP_1, y=UMAP_2,color=SLC7A11),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Antigen_presenting_neutrophils" & SLC7A11 == 0),aes(x=UMAP_1, y=UMAP_2,color=SLC7A11),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Antigen_presenting_neutrophils" & SLC7A11 == 0),aes(x=UMAP_1, y=UMAP_2,color=SLC7A11),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Antigen_presenting_neutrophils" & SLC7A11 > 0),aes(x=UMAP_1, y=UMAP_2,color=SLC7A11),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Antigen_presenting_neutrophils_INPP5F.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Antigen_presenting_neutrophils" & INPP5F > 0),aes(x=UMAP_1, y=UMAP_2,color=INPP5F),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Antigen_presenting_neutrophils" & INPP5F == 0),aes(x=UMAP_1, y=UMAP_2,color=INPP5F),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Antigen_presenting_neutrophils" & INPP5F == 0),aes(x=UMAP_1, y=UMAP_2,color=INPP5F),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Antigen_presenting_neutrophils" & INPP5F > 0),aes(x=UMAP_1, y=UMAP_2,color=INPP5F),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Fibroblast_COL6A2.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Fibroblast" & COL6A2 > 0),aes(x=UMAP_1, y=UMAP_2,color=COL6A2),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Fibroblast" & COL6A2 == 0),aes(x=UMAP_1, y=UMAP_2,color=COL6A2),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Fibroblast" & COL6A2 == 0),aes(x=UMAP_1, y=UMAP_2,color=COL6A2),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Fibroblast" & COL6A2 > 0),aes(x=UMAP_1, y=UMAP_2,color=COL6A2),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Keratinocytes_KRT1.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Keratinocytes" & KRT1 > 0),aes(x=UMAP_1, y=UMAP_2,color=KRT1),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Keratinocytes" & KRT1 == 0),aes(x=UMAP_1, y=UMAP_2,color=KRT1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Keratinocytes" & KRT1 == 0),aes(x=UMAP_1, y=UMAP_2,color=KRT1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Keratinocytes" & KRT1 > 0),aes(x=UMAP_1, y=UMAP_2,color=KRT1),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_Neutrophils_FCGR3B.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Neutrophils" & FCGR3B > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Neutrophils" & FCGR3B == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Neutrophils" & FCGR3B == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Neutrophils" & FCGR3B > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3B),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_TCells_CD3D.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "TCells" & CD3D > 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "TCells" & CD3D == 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "TCells" & CD3D == 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "TCells" & CD3D > 0),aes(x=UMAP_1, y=UMAP_2,color=CD3D),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+```{r}
+save.image("/home/anoop/Desktop/Avinash/Final_Figures_V2/Final.RData")
+```
+
+```{r}
+load("/home/anoop/Desktop/Avinash/Final_Figures_V2/Final.RData")
+```
+
+
+```{r}
+Blood=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_FINAL.rds")
+
+DimPlot(Blood,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+Skin=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/SKIN_FINAL.rds")
+
+DimPlot(Skin,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+##Blood
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Blood_renamed_2=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_FINAL.rds")
+library(dplyr)
+DefaultAssay(Blood_renamed_2) <- "RNA"
+all_genes_tissue <- rownames(x = Blood_renamed_2)
+Blood_renamed_2 <- ScaleData(object = Blood_renamed_2, features = all_genes_tissue)
+combined_markers_tissue <- FindAllMarkers(object = Blood_renamed_2, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+
+#heatmap for top25 combined_markers
+top10_tissue <- combined_markers_tissue %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+
+Test=Blood_renamed_2
+Test@active.ident <- factor(x = Test@active.ident, levels = c("Neutrophils_1","Neutrophils_2","Classical_Monocytes","Intermediate_Monocytes","Non_classical","CD1c+/cDC2","pDCs","TCells","Bcells"))
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Top_10_Markers_All_Clusters_blood2.pdf",height = 8,width = 10)
+DoHeatmap(Test, features =c("FCGR3B","IFITM2","NAMPT","G0S2","SLC25A37","BASP1","RGS2","CXCR2","SOD2","CSF3R","LTF","LCN2","CAMP","CRISP3","CD24","MMP8","CEACAM8","PGLYRP1","RETN","S100A12","LYZ","VCAN","MAFB","DUSP6","FCN1","IL1B","CCL3","CST3","CYBB","CD36","HBB","LYZ","HLA-DRA","CST3","LGALS1","HLA-DRB1","HLA-DQB1","MTRNR2L1","HLA-DPB1","HLA-DPA1","CDKN1C","C1QA","MS4A7","TCF7L2","FCGR3A","NR4A1","CST3","HLA-DPA1","FCER1G","AIF1","FCER1A","CLEC10A","HLA-DQA1","HLA-DQB1","HLA-DPA1","HLA-DPB1","CST3","HLA-DRB1","HLA-DRA","CD74","JCHAIN","LILRA4","PLD4","TCF4","BCL11A","CCDC50","IRF8","GZMB","UGCG","PPP1R14B","CCL5","IL7R","NKG7","IL32","CD3E","KLRB1","CD3D","BCL11B","GZMA","GNLY","IGLL5","MS4A1","CD79A","CD74","HLA-DRA","BANK1","CD79B","HLA-DPB1","HLA-DPA1","HLA-DRB1"),label = TRUE,group.bar = TRUE,size =0,draw.lines = TRUE,
+          angle = 45,group.colors=c("Neutrophils_1"="#FF9933","Neutrophils_2"="#e12885","Classical_Monocytes"="#004000",                                    "Intermediate_Monocytes"="#99cc99","Non_classical"="#008000","CD1c+/cDC2"="#521515",
+                                    "pDCs"="#c06969","TCells"="#000DF4","Bcells"="#68a3db")) + 
+  scale_color_manual(values=c("Neutrophils_1"="#FF9933","Neutrophils_2"="#e12885","Classical_Monocytes"="#004000",                                    "Intermediate_Monocytes"="#99cc99","Non_classical"="#008000","CD1c+/cDC2"="#521515",
+                                    "pDCs"="#c06969","TCells"="#000DF4","Bcells"="#68a3db"))+
+  scale_fill_gradientn(colors = c("#00AFBB", "white", "#972e04"))+
+  theme(text = element_text(size = 5,face = "bold"),legend.position = "right",plot.margin = margin(3.5,2.5,3.5,2.5, "cm"),panel.border=element_blank(),
+        legend.text = element_text(size=10,face = "plain"),legend.title = element_text(size=10),axis.text =element_text(size=4) )
+
+dev.off()
+
+```
+
+
+```{r}
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Top_10_Markers_All_Clusters_blood2.pdf",height = 8,width = 10)
+DoHeatmap(Test, features =c("FCGR3B","IFITM2","NAMPT","G0S2","SLC25A37","BASP1","RGS2","CXCR2","SOD2","CSF3R","LTF","LCN2","CAMP","CRISP3","CD24","MMP8","CEACAM8","PGLYRP1","RETN","S100A12","LYZ","VCAN","MAFB","DUSP6","FCN1","IL1B","CCL3","CST3","CYBB","CD36","HBB","LYZ","HLA-DRA","CST3","LGALS1","HLA-DRB1","HLA-DQB1","MTRNR2L1","HLA-DPB1","HLA-DPA1","CDKN1C","C1QA","MS4A7","TCF7L2","FCGR3A","NR4A1","CST3","HLA-DPA1","FCER1G","AIF1","FCER1A","CLEC10A","HLA-DQA1","HLA-DQB1","HLA-DPA1","HLA-DPB1","CST3","HLA-DRB1","HLA-DRA","CD74","JCHAIN","LILRA4","PLD4","TCF4","BCL11A","CCDC50","IRF8","GZMB","UGCG","PPP1R14B","CCL5","IL7R","NKG7","IL32","CD3E","KLRB1","CD3D","BCL11B","GZMA","GNLY","IGLL5","MS4A1","CD79A","CD74","HLA-DRA","BANK1","CD79B","HLA-DPB1","HLA-DPA1","HLA-DRB1"),label = TRUE,group.bar = TRUE,size =0,draw.lines = TRUE,
+          angle = 45,group.colors=c("Neutrophils_1"="#FF9933","Neutrophils_2"="#e12885","Classical_Monocytes"="#004000",                                    "Intermediate_Monocytes"="#99cc99","Non_classical"="#008000","CD1c+/cDC2"="#521515",
+                                    "pDCs"="#c06969","TCells"="#000DF4","Bcells"="#68a3db")) + 
+  scale_color_manual(values=c("Neutrophils_1"="#FF9933","Neutrophils_2"="#e12885","Classical_Monocytes"="#004000",                                    "Intermediate_Monocytes"="#99cc99","Non_classical"="#008000","CD1c+/cDC2"="#521515",
+                                    "pDCs"="#c06969","TCells"="#000DF4","Bcells"="#68a3db"))+
+  scale_fill_gradientn(colors = c("#00AFBB", "white", "#972e04"))+
+  theme(text = element_text(size = 5,face = "bold"),legend.position = "right",plot.margin = margin(3.5,2.5,3.5,2.5, "cm"),panel.border=element_blank(),
+        legend.text = element_text(size=10,face = "plain"),legend.title = element_text(size=10),axis.text =element_text(size=4) )
+
+dev.off()
+
+```
+
+
+
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+Skin_renamed=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/SKIN_FINAL.rds")
+
+DefaultAssay(Skin_renamed) <- "RNA"
+all_genes_skin <- rownames(x = Skin_renamed)
+Skin_renamed <- ScaleData(object = Skin_renamed, features = all_genes_skin)
+combined_markers_tissue <- FindAllMarkers(object = Skin_renamed, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+
+#heatmap for top25 combined_markers
+top10_skin <- combined_markers_tissue %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+```
+
+
+
+```{r}
+
+Test=Skin_renamed
+Test@active.ident <- factor(x = Test@active.ident, levels = c("Neutrophils","Antigen_presenting_neutrophils","Macrophages","TCells","Keratinocytes","Fibroblast"))
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Top_10_Markers_All_Clusters_Skin2_3.pdf",height = 8,width = 10)
+DoHeatmap(Test, features =top10_skin$gene,label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("Neutrophils"="#FF9933","Antigen_presenting_neutrophils"="#e12885","Macrophages"="#b2b200","TCells"="#000DF4",
+                              "Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2")) + 
+  scale_color_manual(values=c("Neutrophils"="#FF9933","Antigen_presenting_neutrophils"="#e12885","Macrophages"="#b2b200","TCells"="#000DF4",
+                              "Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2"))+
+  scale_fill_gradientn(colors = c("#00AFBB", "white", "#972e04"))+
+  theme(text = element_text(size = 5,face = "bold"),legend.position = "right",plot.margin = margin(5,2.5,5,2.5, "cm"),
+        legend.text = element_text(size=10,face = "plain"),legend.title = element_text(size=10),axis.text =element_text(size=4),panel.border = element_blank() )
+
+dev.off()
+
+```
+
+
+
+
+```{r}
+library(circlize)
+library(ComplexHeatmap)
+
+
+Eu=read.delim("/home/anoop/Desktop/Avinash/FINAL_FIGURES_DATA_TABLES/Ip.txt",row.names = 1)
+
+
+col_fun1 = colorRamp2(c(-2,0,2), c("#00AFBB", "white", "#972e04"))
+
+
+H1=Heatmap(as.matrix((Eu)),col=col_fun1,cluster_rows=TRUE,cluster_columns = FALSE,show_column_names = TRUE,
+           na_col = "white",
+           row_title_gp =gpar(fontsize = 0),
+           row_dend_width = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),
+           column_names_gp =gpar(fontsize = 8),column_dend_height =unit(0.5, "cm"), 
+           clustering_distance_columns = "euclidean",column_gap = unit(1, "mm"),
+           heatmap_legend_param = list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),
+                                       title_gp = gpar(fontsize = 8),
+                                       labels_gp = gpar(fontsize = 8)),
+           name = "Z-Score",show_row_names = TRUE,row_names_gp=gpar(fontsize =8),
+           height  = unit(4, "cm"),width  = unit(4, "cm"))
+
+pdf("/home/anoop/Desktop/Avinash/FINAL_FIGURES_DATA_TABLES/Ip.pdf")
+draw(H1, merge_legend = TRUE,heatmap_legend_side="right", annotation_legend_side="right")
+dev.off()
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/NEW_UMAP/Blood.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/NEW_UMAP/Blood.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=celltype),size=0.5,shape=19)+
+  scale_color_manual(values=c("Neutrophils_1"="#FF9933","Neutrophils_2"="#e12885","ClassicalMonocytes"="#004000",
+                              "Intermediate_Monocytes"="#99cc99","Non_classical"="#008000","CD1c+/cDC2"="#521515",
+                              "pDCs"="#c06969","CD4 CTL"="#0000cc","CD4 Naive"="#7f7fff","CD4 TCM"="#e57a99",
+                              "CD4 TEM"="#ffcfdd","CD8 Naive"="#7f7f00","CD8 TCM"="#e5e500",
+                              "CD8 TEM"="#44517a","MAIT"="#bbc1d6","Treg"="#75694a","Bcells"="#00b2b2"))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(6,1,6,1, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/NEW_UMAP/Skin.txt",row.names = 1)
+pdf("//home/anoop/Desktop/Avinash/Final_Figures_V2/NEW_UMAP/Skin.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=celltype),size=0.5,shape=19)+
+  scale_color_manual(values=c("Neutrophils"="#FF9933","Antigen_presenting_neutrophils"="#e12885",
+                              "Macrophages"="#b2b200","CD4 TCM"="#0000cc","CD4 TEM"="#9999ff","CD8 Naive"="#49623e",
+                              "CD8 Proliferating"="#8bff00","CD8 TEM"="#2a4e6c","MAIT"="#b5cde1","NK_cells"="#800080","Treg"="#8cece2",
+                              "Fibroblast"="#d1d1b2","Keratinocytes"="#7a7a66"))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(6,1,6,1, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+Skin=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/SKIN_FINAL.rds")
+
+DimPlot(Skin,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+feats <- c("LYZ")
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_LYZ.pdf",width = 12,height = 12)
+FeaturePlot(Skin, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = FALSE,ncol = 1)+
+  theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))
+dev.off()
+```
+
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Skin=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Tissue_WZ_annotated.rds")
+```
+
+```{r}
+Idents(object = Skin) <- "WZ.celltype"
+#pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.pdf",width = 10,height = 10)
+DimPlot(Skin,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+```{r}
+feats <- c("FCGR3A")
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Skin_FCGR3A.pdf",width = 12,height = 12)
+FeaturePlot(Skin, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = FALSE,ncol = 1)+
+  theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))
+dev.off()
+```
+
+
+
+### ALL CELL TYPES AND NEUTRPHIL 1 + NEUTROPHIL2
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Blood=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Blood_WZ_annotated.rds")
+```
+
+```{r}
+#pdf("/home/anoop/Desktop/Avinash/Temp/Blood/UMAP.pdf",width = 10,height = 10)
+DimPlot(Blood,
+        reduction = "umap",group.by = c("WZ.celltype"),
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+#dev.off()
+
+
+Idents(object = Blood) <- "WZ.celltype"
+#pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.pdf",width = 10,height = 10)
+DimPlot(Blood,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+Blood@meta.data[236,"WZ.celltype"]<-"N2"
+Blood@meta.data[431,"WZ.celltype"]<-"N2"
+Blood@meta.data[775,"WZ.celltype"]<-"N2"
+Blood@meta.data[1208,"WZ.celltype"]<-"N2"
+Blood@meta.data[1397,"WZ.celltype"]<-"N2"
+Blood@meta.data[1409,"WZ.celltype"]<-"N2"
+Blood@meta.data[1572,"WZ.celltype"]<-"N2"
+Blood@meta.data[2236,"WZ.celltype"]<-"N2"
+Blood@meta.data[2340,"WZ.celltype"]<-"N2"
+Blood@meta.data[2526,"WZ.celltype"]<-"N2"
+Blood@meta.data[3078,"WZ.celltype"]<-"N2"
+Blood@meta.data[3172,"WZ.celltype"]<-"N2"
+Blood@meta.data[3275,"WZ.celltype"]<-"N2"
+Blood@meta.data[3490,"WZ.celltype"]<-"N2"
+Blood@meta.data[3708,"WZ.celltype"]<-"N2"
+Blood@meta.data[4302,"WZ.celltype"]<-"N2"
+Blood@meta.data[4371,"WZ.celltype"]<-"N2"
+Blood@meta.data[4435,"WZ.celltype"]<-"N2"
+Blood@meta.data[4502,"WZ.celltype"]<-"N2"
+Blood@meta.data[4524,"WZ.celltype"]<-"N2"
+Blood@meta.data[4829,"WZ.celltype"]<-"N2"
+Blood@meta.data[5916,"WZ.celltype"]<-"N2"
+Blood@meta.data[8573,"WZ.celltype"]<-"N2"
+Blood@meta.data[8851,"WZ.celltype"]<-"N2"
+Blood@meta.data[10349,"WZ.celltype"]<-"N2"
+Blood@meta.data[10433,"WZ.celltype"]<-"N2"
+Blood@meta.data[10524,"WZ.celltype"]<-"N2"
+Blood@meta.data[10756,"WZ.celltype"]<-"N2"
+Blood@meta.data[11208,"WZ.celltype"]<-"N2"
+Blood@meta.data[11571,"WZ.celltype"]<-"N2"
+Blood@meta.data[11895,"WZ.celltype"]<-"N2"
+Blood@meta.data[11931,"WZ.celltype"]<-"N2"
+Blood@meta.data[12036,"WZ.celltype"]<-"N2"
+Blood@meta.data[12068,"WZ.celltype"]<-"N2"
+Blood@meta.data[12303,"WZ.celltype"]<-"N2"
+Blood@meta.data[12554,"WZ.celltype"]<-"N2"
+Blood@meta.data[12636,"WZ.celltype"]<-"N2"
+Blood@meta.data[12661,"WZ.celltype"]<-"N2"
+Blood@meta.data[12706,"WZ.celltype"]<-"N2"
+Blood@meta.data[13052,"WZ.celltype"]<-"N2"
+Blood@meta.data[13063,"WZ.celltype"]<-"N2"
+Blood@meta.data[13081,"WZ.celltype"]<-"N2"
+Blood@meta.data[13100,"WZ.celltype"]<-"N2"
+Blood@meta.data[13170,"WZ.celltype"]<-"N2"
+Blood@meta.data[13517,"WZ.celltype"]<-"N2"
+Blood@meta.data[13747,"WZ.celltype"]<-"N2"
+Blood@meta.data[13885,"WZ.celltype"]<-"N2"
+Blood@meta.data[14055,"WZ.celltype"]<-"N2"
+Blood@meta.data[14188,"WZ.celltype"]<-"N2"
+Blood@meta.data[14234,"WZ.celltype"]<-"N2"
+Blood@meta.data[14240,"WZ.celltype"]<-"N2"
+```
+
+```{r}
+Idents(object = Blood) <- "WZ.celltype"
+Blood_renamed <- RenameIdents(object = Blood, 
+                              "CD8 TEM" = "CD8 TEM",
+                               "Neutrophil" = "Neutrophils_1",
+                               "CD4 TCM" = "CD4 TCM",
+                               "CD4 CTL" = "CD4 CTL",
+                               "MAIT" = "MAIT",
+                               "ClassicalMonocytes" = "Classical_Monocytes",
+                               "Treg" = "Treg",
+                               "CD4 TEM" = "CD4 TEM",
+                               "CD4 Naive" = "CD4 Naive",
+                               "CD8 Naive" = "CD8 Naive",
+                               "MyeloidDCs"="CD1c+/cDC2",
+                               "mDC3"="Intermediate_Monocytes",
+                               "CD8 TCM"="CD8 TCM",
+                               "Monocytes"="Non_classical",
+                               "Bcells"="Bcells",
+                               "Fibroblasts"="Fibroblasts",
+                               "pDCs"="pDCs",
+                                "N2"="Neutrophils_2")
+```
+
+
+```{r}
+Blood_renamed_2 <- subset(Blood_renamed, idents = "Fibroblasts",invert = TRUE)
+DimPlot(Blood_renamed_2,
+        reduction = "umap",
+        label = TRUE,
+        label.size =2, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+#write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+
+library(dplyr)
+DefaultAssay(Blood_renamed_2) <- "RNA"
+all_genes_tissue <- rownames(x = Blood_renamed_2)
+Blood_renamed_2 <- ScaleData(object = Blood_renamed_2, features = all_genes_tissue)
+combined_markers_tissue <- FindAllMarkers(object = Blood_renamed_2, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+write.table(combined_markers_tissue,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/All_Markers_All_Clusters_Blood_RePerformed.txt", sep="\t",col.names = NA,quote = FALSE)
+
+```
+
+```{r}
+saveRDS(Blood_renamed_2,file = "/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Blood_with_Neut2.rds")
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Normalized_M.txt",row.names = 1,sep=",")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Macrophages_LYZ.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "Macrophages" & LYZ > 0),aes(x=UMAP_1, y=UMAP_2,color=LYZ),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "Macrophages" & LYZ == 0),aes(x=UMAP_1, y=UMAP_2,color=LYZ),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Macrophages" & LYZ == 0),aes(x=UMAP_1, y=UMAP_2,color=LYZ),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "Macrophages" & LYZ > 0),aes(x=UMAP_1, y=UMAP_2,color=LYZ),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+## SKIN WITH NK--CELLS
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Skin=readRDS("/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Tissue_WZ_annotated.rds")
+```
+
+```{r}
+Idents(object = Skin) <- "WZ.celltype"
+#pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_UMAP.pdf",width = 10,height = 10)
+DimPlot(Skin,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+Idents(object = Skin) <- "WZ.celltype"
+Skin_renamed <- RenameIdents(object = Skin, 
+                             "CD4 TCM" = "TCells",
+                             "CD4 TEM" = "TCells",
+                             "CD8 Naive" = "TCells",
+                             "CD8 Proliferating" = "TCells",
+                             "CD8 TEM" = "TCells",
+                             "Fibroblast" = "Fibroblast",
+                             "Keratinocytes" = "Keratinocytes",
+                             "Macrophages" = "Macrophages",
+                             "MAIT" = "TCells",
+                             "Neutrophils"= "Neutrophils",
+                             "NK_cells" = "NK_cells",
+                             "Treg" = "TCells",
+                             "Undefined" = "Antigen_presenting_neutrophils")
+```
+
+```{r}
+
+DimPlot(Skin_renamed,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+#write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+
+```
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Figure 16: Top 10 gene expression markers for cell type identity", echo=FALSE,fig.height=5, fig.width=12}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+
+DefaultAssay(Skin_renamed) <- "RNA"
+all_genes_skin <- rownames(x = Skin_renamed)
+Skin_renamed <- ScaleData(object = Skin_renamed, features = all_genes_skin)
+combined_markers_tissue <- FindAllMarkers(object = Skin_renamed, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 3)
+
+write.table(combined_markers_tissue,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/All_Markers_All_Clusters_SKIN_RePerformed.txt", sep="\t",col.names = NA,quote = FALSE)
+
+#heatmap for top25 combined_markers
+top10_skin <- combined_markers_tissue %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+
+write.table(top10_skin,"/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Top10_Markers_All_Clusters_SKIN_RePerformed.txt", sep="\t",col.names = NA,quote = FALSE)
+```
+
+
+```{r}
+
+Test=Skin_renamed
+Test@active.ident <- factor(x = Test@active.ident, levels = c("Neutrophils","Antigen_presenting_neutrophils","Macrophages","TCells","NK_cells","Keratinocytes","Fibroblast"))
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Top_10_Markers_All_Clusters_Skin2_3.pdf",height = 8,width = 10)
+DoHeatmap(Test, features =c("AQP9","PROK2","IL1R2","LIMK2","BASP1","PTGS2","DOCK4","DENND5A","PLAUR","CXCL8","RNF150","WNT5B","SLC7A11","INPP5F","ANKRD33B","GRK3","UBE2E2","IL15","NETO2","ALCAM","LYZ","S100A9","S100A8","HLA-DRA","VCAN","CXCL8","FTL","CST3","CD74","ZEB2","SKAP1","INPP4B","CAMK4","BCL11B","IL7R","CD96","STAT4","RORA","ANK3","CDC14A","GZMB","CCL4L2","GNLY","PDGFD","CCL4","IFNG","SPON2","NKG7","GZMA","CCL3","KRT1","S100A7","KRTDAP","KRT5","SFN","SERPINB4","KRT14","DSP","FABP5","KRT10","DCN","COL1A2","COL3A1","APOD","COL1A1","CXCL14","MGP","APOE","CFD","GSN"),label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("Neutrophils"="#FF9933","Antigen_presenting_neutrophils"="#e12885",
+                                                                                                          "Macrophages"="#b2b200","TCells"="#000DF4","NK_cells"="#800080",
+                              "Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2")) + 
+  scale_color_manual(values=c("Neutrophils"="#FF9933","Antigen_presenting_neutrophils"="#e12885","Macrophages"="#b2b200",
+                              "TCells"="#000DF4","NK_cells"="#800080",
+                              "Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2"))+
+  scale_fill_gradientn(colors = c("#00AFBB", "white", "#972e04"))+
+  theme(text = element_text(size = 5,face = "bold"),legend.position = "right",plot.margin = margin(5,2.5,5,2.5, "cm"),
+        legend.text = element_text(size=10,face = "plain"),legend.title = element_text(size=10),axis.text =element_text(size=4),panel.border = element_blank() )
+
+dev.off()
+type(top10_skin$gene)
+```
+
+```{r}
+
+XX=DimPlot(Skin_renamed,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.5) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP_NKcells.txt",sep="\t",col.names = NA,quote = FALSE)
+
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP_NKcells.txt",row.names = 1)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_UMAP.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=data, aes(x=UMAP_1, y=UMAP_2,color=celltype),size=0.5,shape=19)+
+  scale_color_manual(values=c("Neutrophils"="#FF9933","TCells"="#000DF4","NK_cells"="#800080","Macrophages"="#b2b200",
+                              "Antigen_presenting_neutrophils"="#e12885","Keratinocytes"="#7a7a66","Fibroblast"="#d1d1b2"))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(6,1,6,1, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+```{r}
+saveRDS(Skin_renamed,file = "/home/anoop/Desktop/Avinash/FINAL_Analysis/Tcell/Skin_with_NK.rds")
+```
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Normalized_M1.txt",row.names = 1,sep="\t")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Macrophages_FCGR3A.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "NK_cells" & FCGR3A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "NK_cells" & FCGR3A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & FCGR3A == 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & FCGR3A > 0),aes(x=UMAP_1, y=UMAP_2,color=FCGR3A),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Normalized_M1.txt",row.names = 1,sep="\t")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Macrophages_KLRF1.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "NK_cells" & KLRF1 > 0),aes(x=UMAP_1, y=UMAP_2,color=KLRF1),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "NK_cells" & KLRF1 == 0),aes(x=UMAP_1, y=UMAP_2,color=KLRF1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & KLRF1 == 0),aes(x=UMAP_1, y=UMAP_2,color=KLRF1),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & KLRF1 > 0),aes(x=UMAP_1, y=UMAP_2,color=KLRF1),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
+
+```{r}
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Normalized_M1.txt",row.names = 1,sep="\t")
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/TEST/Skin_Macrophages_KIR2DL3.pdf",width = 12,height = 12)
+ggplot()+geom_point(data=subset(data, celltype != "NK_cells" & KIR2DL3 > 0),aes(x=UMAP_1, y=UMAP_2,color=KIR2DL3),size=0.1,shape=19)+
+  geom_point(data=subset(data, celltype != "NK_cells" & KIR2DL3 == 0),aes(x=UMAP_1, y=UMAP_2,color=KIR2DL3),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & KIR2DL3 == 0),aes(x=UMAP_1, y=UMAP_2,color=KIR2DL3),size=0.5,shape=19)+
+  geom_point(data=subset(data, celltype == "NK_cells" & KIR2DL3 > 0),aes(x=UMAP_1, y=UMAP_2,color=KIR2DL3),size=0.5,shape=19)+
+  scale_color_gradient(low="#cccccc",high="#0000b2",breaks=c(0,2,4,5))+
+  theme_bw()+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "right",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),plot.margin = margin(7,5,7,5, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),ncol = 1))
+dev.off()
+```
+
