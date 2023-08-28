@@ -1,0 +1,610 @@
+---
+title: "Untitled"
+author: "Anoop Ambikan"
+date: "1/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+rm(list=ls())
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+Blood=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Blood_NEW.rds")
+Skin=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Skin_NEW.rds")
+```
+
+```{r}
+Blood_neutro <- subset(Blood, idents = "Neutrophils")
+Skin_neutro <- subset(Skin, idents = c("Neutrophils","Antigen_presenting_neutrophils"))
+DimPlot(Blood_neutro,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+DimPlot(Skin_neutro,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+Blood_Neutro_labelled <- RenameIdents(object = Blood_neutro, 
+                               "Neutrophils" = "Blood_Neutrophils")
+
+Skin_Neutro_labelled <- RenameIdents(object = Skin_neutro, 
+                               "Neutrophils" = "Skin_Neutrophils",
+                               "Antigen_presenting_neutrophils" = "Skin_Neutrophils")
+```
+
+
+```{r}
+DimPlot(Blood_Neutro_labelled,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+DimPlot(Skin_Neutro_labelled,
+        reduction = "umap",
+        label = TRUE,
+        label.size = 6, pt.size = 0.1) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r,fig.align = "center",fig.height=5, fig.width=7,fig.cap="UMAP of Control samples in Downloaded Data"}
+
+
+MERGED <- merge(Blood_Neutro_labelled, Skin_Neutro_labelled, add.cell.ids=c("Blood_neu","Skin_neu"),project = "Neutrophils")
+
+dim(Blood_Neutro_labelled)    # Blood data
+dim(Skin_Neutro_labelled)                    # Downloaded control data
+dim(MERGED)                # Merged data
+
+MERGED@meta.data$NEW_Group <- NA 
+MERGED@meta.data$NEW_Group[which(str_detect(row.names(MERGED@meta.data), "^Blood_neu_"))] <- "Blood"
+MERGED@meta.data$NEW_Group[which(str_detect(row.names(MERGED@meta.data), "^Skin_neu_"))] <- "Skin"
+
+
+```
+
+
+```{r,fig.align = "center",fig.height=5, fig.width=7,fig.cap="Number of cells"}
+MERGED@meta.data %>% 
+  ggplot(aes(x=NEW_Group,fill=NEW_Group)) + 
+  geom_bar() +
+  theme_classic() +
+  theme(text = element_text(size=15),axis.title.x = element_blank()) +
+  theme(plot.title = element_text(hjust=0.5, face="bold"))+
+  labs(title = "Number of cells per group",
+       subtitle = "Determined by number of unique cellular barcodes detected")+
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold"),
+        plot.subtitle = element_text(color = "orange", size = 9),
+        plot.caption = element_text(color = "green", size = 6, face = "italic")) + 
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), plot.caption = element_text(hjust = 1))
+```
+
+```{r}
+
+seurat_list <- SplitObject(MERGED, split.by = "NEW_Group")
+for (i in 1:length(seurat_list)) {
+  seurat_list[[i]] <- NormalizeData(seurat_list[[i]],
+                                    verbose = FALSE)
+  seurat_list[[i]] <- FindVariableFeatures(seurat_list[[i]], 
+                                           selection.method = "vst", 
+                                           nfeatures = 1000,
+                                           verbose = FALSE)
+} 
+
+library(tidyr)
+anchors <- FindIntegrationAnchors(object.list = seurat_list, dims = 1:30,k.filter = 50)
+combined <- IntegrateData(anchorset = anchors,dims = 1:30,k.weight=50)
+DefaultAssay(object = combined) <- "integrated"
+
+Blood_cell_ids <- rownames(combined@meta.data[which(combined@meta.data$NEW_Group == "Blood"), ])
+Skin_cell_ids <- rownames(combined@meta.data[which(combined@meta.data$NEW_Group == "Skin"), ])
+
+seurat_Blood<- subset(combined, cells = Blood_cell_ids)
+seurat_Skin <- subset(combined, cells = Skin_cell_ids)
+
+n_cells_Blood <- FetchData(seurat_Blood, vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+
+n_cells_Skin <- FetchData(seurat_Skin, vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+
+n_cells_combined <- FetchData(combined, vars = c("ident")) %>% 
+  dplyr::count(ident) %>% 
+  spread(ident, n)
+
+all_genes <- rownames(x = combined)
+combined <- ScaleData(object = combined, features = all_genes)
+
+all_genes_Blood <- rownames(x = seurat_Blood)
+seurat_Blood <- ScaleData(object = seurat_Blood, features = all_genes_Blood)
+
+all_genes_Skin <- rownames(x = seurat_Skin)
+seurat_Skin <- ScaleData(object = seurat_Skin, features = all_genes_Skin)
+
+```
+
+
+```{r}
+
+combined <- RunPCA(combined,verbose = FALSE)
+
+combined <- FindNeighbors(object = combined, dims = 1:30)
+combined <- FindClusters(object = combined, resolution = seq(0.05,2,0.025)) 
+sapply(grep("res",colnames(combined@meta.data),value = TRUE), function(x) length(unique(combined@meta.data[,x])))
+Idents(object = combined) <- "integrated_snn_res.0.35"
+combined <- RunUMAP(combined,reduction = "pca",dims = 1:30)
+DimPlot(combined,
+        reduction = "umap",split.by = "NEW_Group",
+        label = TRUE,
+        label.size = 6, pt.size = 2) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+#write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+
+```
+```{r}
+#combined@meta.data[4268,"integrated_snn_res.0.35"] <- 1
+#Idents(object=combined) <- "integrated_snn_res.0.35"
+XX=DimPlot(combined,
+        reduction = "umap",split.by = "NEW_Group",
+        label = TRUE,
+        label.size = 6, pt.size = 2) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+write.table(XX$data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/UMAP.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+
+
+DefaultAssay(combined) <- "RNA"
+all_genes <- rownames(x = combined)
+combined <- ScaleData(object = combined, features = all_genes)
+combined_markers <- FindAllMarkers(object = combined, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 1)
+write.table(combined_markers,"/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Main_Markers_All_Clusters.txt", sep="\t",quote = FALSE, col.names = NA)
+
+
+#heatmap for top25 combined_markers
+top15 <- combined_markers %>% group_by(cluster) %>% top_n(n = 15, wt = avg_log2FC)
+write.table(top15,"/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Top_15_Markers_All_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+```
+
+```{r}
+top10 <- combined_markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+write.table(top15,"/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Top_10_Markers_All_Clusters.txt", sep="\t",col.names = NA,quote = FALSE)
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Top10_Markers.pdf",height = 8,width = 10)
+DoHeatmap(combined, features =top10$gene,label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("0"="#d47d7d","1"="#c4d080","2"="#a1ced8", "3"="#c9a0c7","4"="#eceadc","5"="#20b2aa"))+
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(5.5,5,5.5,5, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=4),panel.border = element_blank() )
+
+dev.off()
+```
+
+
+```{r}
+all_genes <- rownames(x = combined)
+get_conserved <- function(cluster){
+  FindConservedMarkers(combined,
+                       ident.1 = cluster,
+                       grouping.var = "NEW_Group", 
+                       min.cells.group = 1, 
+                       only.pos = FALSE) %>%
+    rownames_to_column(var = "gene") %>%
+    cbind(cluster_id = cluster, .)
+}
+library(purrr)
+library(tidyverse)
+conserved_markers <- map_dfr(c(0:5), get_conserved)
+write.table(conserved_markers, file = "/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/ConservedMarkers_bt_Blood_Skin.txt", quote = FALSE, col.names = NA)
+top15 <- conserved_markers %>% group_by(cluster_id) %>% top_n(n = 15, wt = Blood_avg_log2FC)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Top15_ConservedMarkers.pdf",height = 8,width = 10)
+DoHeatmap(combined, features = top15$gene,label = TRUE,group.bar = TRUE,size = 5) + 
+  theme(text = element_text(size = 5),legend.position = "right",plot.margin = margin(2,4,2,4, "cm"),
+        legend.text = element_text(size=10),legend.title = element_text(size=10),axis.text =element_text(size=4) )
+dev.off()
+
+```
+
+```{r}
+saveRDS(combined, file = "/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Skin_Blood_Merged.rds")
+```
+
+```{r}
+combined=readRDS("/media/anoop/EXTERNAL_USB/Backup/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Skin_Blood_Merged.rds")
+```
+
+
+```{r}
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+Idents(object=combined)
+DimPlot(combined,
+        reduction = "umap",split.by = "NEW_Group",
+        label = TRUE,
+        label.size = 6, pt.size = 2) + labs(title = "Uniform Manifold Approximation and Projection (UMAP)") +
+  theme(plot.title = element_text(color = "steelblue4", size = 13, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+feats <- c("CD177")
+FeaturePlot(combined, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10', label = FALSE,ncol = 1,split.by = "NEW_Group")
+VlnPlot(combined, features = feats, ncol = 1,pt.size = 0.1,split.by = "NEW_Group")
+```
+
+```{r}
+
+write.table(combined[["RNA"]]@data,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Normalized_data.txt",sep="\t",col.names = NA,quote = FALSE)
+```
+
+
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+combined=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Skin_Blood_Merged.rds")
+DefaultAssay(combined) <- "RNA"
+all_genes <- rownames(x = combined)
+combined <- ScaleData(object = combined, features = all_genes)
+combined_markers <- FindAllMarkers(object = combined, only.pos = FALSE, min.pct = 0.25, logfc.threshold = 0.25, min.cells.group = 1)
+
+```
+
+```{r}
+top10 <- combined_markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+?DoHeatmap
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Top10_Markers.pdf",height = 8,width = 10)
+DoHeatmap(combined, features =top10$gene,label = TRUE,group.bar = TRUE,size =0,angle = 45,group.colors=c("0"="#d47d7d","1"="#c4d080","2"="#a1ced8", "3"="#c9a0c7","4"="#eceadc","5"="#20b2aa"))+
+  scale_fill_gradientn(colors = c("#00AFBB", "white", "#4b1702"))+
+  theme(text = element_text(size = 5,face = "bold"),legend.position = "right",plot.margin = margin(5.5,4,5.5,5, "cm"),
+        legend.text = element_text(size=10,face = "plain"),legend.title = element_text(size=10),axis.text =element_text(size=4),panel.border = element_blank() )
+
+dev.off()
+```
+
+
+```{r}
+combined$celltype.stim <- paste(Idents(combined), combined$NEW_Group, sep = "_")
+combined$celltype <- Idents(combined)
+Idents(combined) <- "celltype.stim"
+```
+
+```{r}
+Skin_0_vs_0_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "0_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_0_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_0.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_0_vs_1_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "1_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_1_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_1.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_0_vs_2_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "2_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_2_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_2.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_0_vs_3_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "3_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_3_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_3.txt",sep="\t",col.names = NA,quote = )
+
+Skin_0_vs_4_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "4_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_4_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_4.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_0_vs_5_Blood <- FindMarkers(combined, ident.1 = "0_Skin", ident.2 = "5_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_0_vs_5_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_0_vs_Blood_5.txt",sep="\t",col.names = NA,quote = )
+```
+
+```{r}
+Skin_1_vs_0_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "0_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_0_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_0.txt",sep="\t",col.names = NA,quote = )
+
+Skin_1_vs_1_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "1_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_1_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_1.txt",sep="\t",col.names = NA,quote = )
+
+Skin_1_vs_2_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "2_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_2_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_2.txt",sep="\t",col.names = NA,quote = )
+
+Skin_1_vs_3_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "3_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_3_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_3.txt",sep="\t",col.names = NA,quote = )
+
+Skin_1_vs_4_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "4_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_4_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_4.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_1_vs_5_Blood <- FindMarkers(combined, ident.1 = "1_Skin", ident.2 = "5_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_1_vs_5_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_1_vs_Blood_5.txt",sep="\t",col.names = NA,quote = )
+```
+
+```{r}
+
+Skin_2_vs_0_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "0_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_0_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_0.txt",sep="\t",col.names = NA,quote = )
+
+Skin_2_vs_1_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "1_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_1_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_1.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_2_vs_2_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "2_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_2_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_2.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_2_vs_3_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "3_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_3_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_3.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_2_vs_4_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "4_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_4_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_4.txt",sep="\t",col.names = NA,quote = )
+
+Skin_2_vs_5_Blood <- FindMarkers(combined, ident.1 = "2_Skin", ident.2 = "5_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_2_vs_5_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_2_vs_Blood_5.txt",sep="\t",col.names = NA,quote = )
+```
+
+```{r}
+Skin_5_vs_0_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "0_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_0_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_0.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_5_vs_1_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "1_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_1_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_1.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_5_vs_2_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "2_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_2_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_2.txt",sep="\t",col.names = NA,quote = )
+
+
+Skin_5_vs_3_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "3_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_3_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_3.txt",sep="\t",col.names = NA,quote = )
+
+Skin_5_vs_4_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "4_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_4_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_4.txt",sep="\t",col.names = NA,quote = )
+
+Skin_5_vs_5_Blood <- FindMarkers(combined, ident.1 = "5_Skin", ident.2 = "5_Blood", 
+                                         only.pos = FALSE, min.pct = 0.1, min.diff.pct = 0.2, logfc.threshold = 0.2, verbose = FALSE)
+write.table(Skin_5_vs_5_Blood,file="/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Skin_5_vs_Blood_5.txt",sep="\t",col.names = NA,quote = )
+```
+
+```{r}
+library(ggplot2)
+
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Figure/Cls2.txt",header = TRUE)
+head(data)
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/diff_exp/Figure/Cls2.pdf")
+ggplot(data, aes(x=factor(Gene,levels = unique(Gene)), y=avg_log2FC, fill=-log10(p_val_adj))) + geom_bar(stat="identity")+
+  scale_fill_gradient(low="#ccccff",high="#000099")+
+  theme(plot.margin = margin(6,2,6,2, "cm"),axis.text.x = element_text(angle = 45,size = 6,hjust = 1,colour = "black"),axis.title.x = element_blank(),axis.text.y = element_text(size = 6,colour = "black"),axis.title = element_text(size = 8,colour = "black"),
+        legend.title =element_text(size = 8,colour = "black"),legend.text = element_text(size = 8,colour = "black") )
+dev.off()
+```
+
+
+```{r}
+library(ggplot2)
+
+data=read.delim("/home/anoop/Desktop/Avinash/FINAL_Analysis/HEalthy/HC_ARDS_Blood/DEG/figs/Cls6.txt",header = TRUE)
+head(data)
+pdf("/home/anoop/Desktop/Avinash/FINAL_Analysis/HEalthy/HC_ARDS_Blood/DEG/figs/Cls6.pdf")
+ggplot(data, aes(x=factor(Gene,levels = unique(Gene)), y=avg_log2FC, fill=-log10(p_val_adj))) + geom_bar(stat="identity")+
+  scale_fill_gradient(low="#ccccff",high="#000099")+
+  theme(plot.margin = margin(6,2,6,2, "cm"),axis.text.x = element_text(angle = 45,size = 6,hjust = 1,colour = "black"),axis.title.x = element_blank(),axis.text.y = element_text(size = 6,colour = "black"),axis.title = element_text(size = 8,colour = "black"),
+        legend.title =element_text(size = 8,colour = "black"),legend.text = element_text(size = 8,colour = "black") )
+dev.off()
+```
+
+
+```{r}
+set.seed(123)
+nr1 = 4; nr2 = 8; nr3 = 6; nr = nr1 + nr2 + nr3
+nc1 = 6; nc2 = 8; nc3 = 10; nc = nc1 + nc2 + nc3
+mat = cbind(rbind(matrix(rnorm(nr1*nc1, mean = 1,   sd = 0.5), nr = nr1),
+                  matrix(rnorm(nr2*nc1, mean = 0,   sd = 0.5), nr = nr2),
+                  matrix(rnorm(nr3*nc1, mean = 0,   sd = 0.5), nr = nr3)),
+            rbind(matrix(rnorm(nr1*nc2, mean = 0,   sd = 0.5), nr = nr1),
+                  matrix(rnorm(nr2*nc2, mean = 1,   sd = 0.5), nr = nr2),
+                  matrix(rnorm(nr3*nc2, mean = 0,   sd = 0.5), nr = nr3)),
+            rbind(matrix(rnorm(nr1*nc3, mean = 0.5, sd = 0.5), nr = nr1),
+                  matrix(rnorm(nr2*nc3, mean = 0.5, sd = 0.5), nr = nr2),
+                  matrix(rnorm(nr3*nc3, mean = 1,   sd = 0.5), nr = nr3))
+)
+mat = mat[sample(nr, nr), sample(nc, nc)] # random shuffle rows and columns
+rownames(mat) = paste0("row", seq_len(nr))
+colnames(mat) = paste0("column", seq_len(nc))
+
+head(mat)
+small_mat = mat[1:9, 1:9]
+
+cor_mat = cor(small_mat)
+od = hclust(dist(cor_mat))$order
+cor_mat = cor_mat[od, od]
+nm = rownames(cor_mat)
+col_fun = circlize::colorRamp2(c(-1, 0, 1), c("green", "white", "red"))
+```
+
+```{r}
+library(caret)
+library(ComplexHeatmap)
+library(circlize)
+data=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/NEW_KEGG/Fig/Selected/test/Mixed.txt",row.names = 1)
+
+col_gene = colorRamp2(c(0,1,1.5,2,4,8,10), c("#cceffb","#99e0f8","#4cc9f3","#19b9ef","#008ebe","#006a8e","#00475f"))
+H1=Heatmap(data, name = "1+[-log10(pval)]", col = col_gene, rect_gp = gpar(type = "none"), 
+    cell_fun = function(j, i, x, y, width, height, fill) {
+        grid.rect(x = x, y = y, width = width, height = height, 
+            gp = gpar(col = "#cccccc", fill = "#f2f2f2",size=0))
+            grid.circle(x = x, y = y, r = abs(data[i, j])/4 * min(unit.c(width, height)) , 
+                gp = gpar(fill = col_gene(data[i, j]), col = NA))
+    }, cluster_rows = TRUE, cluster_columns = FALSE,
+    show_row_names = TRUE, show_column_names = TRUE,height  = unit(19, "cm"),width  = unit(3, "cm"),
+    row_names_gp=gpar(fontsize =8.25),column_names_gp=gpar(fontsize =8),row_dend_width = unit(0.5, "cm"))
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/NEW_KEGG/Fig/Selected/test/Mixed.pdf",width = 10,height = 10)
+draw(H1, merge_legend = TRUE,heatmap_legend_side="left", annotation_legend_side="left")
+dev.off()
+```
+
+
+```{r,eval=FALSE}
+library(ComplexHeatmap)
+library(circlize)
+CelFr=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/FunctionDataTT.txt",header = TRUE,check.names = FALSE,row.names = 1)
+
+
+sample=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/Funct_Cell_Info2.txt",row.names = 1)
+
+ha = HeatmapAnnotation(df = sample,show_annotation_name = FALSE,simple_anno_size = unit(0.3, "cm"),
+                       annotation_legend_param = list(Cluster = list(direction = "horizontal",grid_width = unit(0.5, "cm"),
+                                                                   grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10))),
+                       col = list(Cluster=c("Neu_0"="#d47d7d","Neu_1"="#c4d080",
+                                            "Neu_2"="#a1ced8", "Neu_3"="#c9a0c7","Neu_4"="#eceadc","Neu_5"="#20b2aa")))
+
+
+#col_fun1 = colorRamp2(c(0,1,2,3,4,5), c("#ffffff","#ffb2b2","#ff6666","#ff3232","#e50000","#7f0000"))
+col_fun1 = colorRamp2(c(-1,0,1), c("#00AFBB", "white", "#972e04"))
+info2=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/Funct_Info.txt",row.names = 1)
+ha2 = rowAnnotation(df = info2,show_annotation_name = FALSE,simple_anno_size = unit(0.3, "cm"),
+                       annotation_legend_param = list(direction = "horizontal",grid_width = unit(0.5, "cm"),
+                                                      grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10)),
+                       col = list(Type=c("neutrophil degranulation"="#9f8170","neutrophil activation"="#dbbe39")))
+
+H1=Heatmap(t(scale(t(CelFr))),cluster_columns = FALSE,show_column_names = FALSE,col = col_fun1,top_annotation = ha,row_dend_width = unit(0.5, "cm"),
+           ,row_gap = unit(0.5, "mm"),left_annotation = ha2,row_split = info2$Type,row_dend_reorder = TRUE,column_split = sample$Cluster,
+           column_dend_height = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),cluster_rows = TRUE,row_title_gp = gpar(fontsize = 0),
+           heatmap_legend_param =list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10),
+                                      labels_gp = gpar(fontsize = 10)),
+           name = "Zscore",show_row_names = TRUE,row_names_gp=gpar(fontsize = 8),height  = unit(22, "cm"),width  = unit(12, "cm"))
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/FunctionHM_Z.pdf",width = 12,height = 12)
+draw(H1,heatmap_legend_side = "right", annotation_legend_side = "right",merge_legend = TRUE)
+dev.off()
+```
+
+
+```{r,eval=FALSE}
+library(ComplexHeatmap)
+library(circlize)
+CelFr=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/GranularityDataTT.txt",header = TRUE,check.names = FALSE,row.names = 1)
+
+
+sample=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/Gran_Cell_Info2.txt",row.names = 1)
+
+ha = HeatmapAnnotation(df = sample,show_annotation_name = FALSE,simple_anno_size = unit(0.3, "cm"),
+                       annotation_legend_param = list(Cluster = list(direction = "horizontal",grid_width = unit(0.5, "cm"),
+                                                                   grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10))),
+                       col = list(Cluster=c("Neu_0"="#d47d7d","Neu_1"="#c4d080",
+                                            "Neu_2"="#a1ced8", "Neu_3"="#c9a0c7","Neu_4"="#eceadc","Neu_5"="#20b2aa")))
+
+
+col_fun1 = colorRamp2(c(0,1,2,3,4,5), c("#ffffff","#ffb2b2","#ff6666","#ff3232","#e50000","#7f0000"))
+
+#col_fun1 = colorRamp2(c(-1,0,1), c("#00AFBB", "white", "#972e04"))
+
+
+
+info2=read.delim("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/GranInfo.txt",row.names = 1)
+ha2 = rowAnnotation(df = info2,show_annotation_name = FALSE,simple_anno_size = unit(0.3, "cm"),
+                       annotation_legend_param = list(direction = "horizontal",grid_width = unit(0.5, "cm"),
+                                                      grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10), 
+                                                                   labels_gp = gpar(fontsize = 10)),
+                       col = list(Type=c("specific granule"="#f2b894","tertiary granule"="#9f8170",
+                                         "azurophil granule"="#7f7fff","secretory vesicle"="#bfbfbf")))
+
+H1=Heatmap(as.matrix(t(scale(t(CelFr)))),cluster_columns = FALSE,show_column_names = FALSE,col = col_fun1,top_annotation = ha,row_dend_width = unit(0.5, "cm"),
+           ,row_gap = unit(0.5, "mm"),left_annotation = ha2,row_split = info2$Type,row_dend_reorder = TRUE,column_split = sample$Cluster,
+           column_dend_height = unit(0.5, "cm"),column_title_gp =gpar(fontsize = 0),cluster_rows = TRUE,row_title_gp = gpar(fontsize = 0),
+           heatmap_legend_param =list(grid_width = unit(0.5, "cm"),grid_height = unit(0.5, "cm"),title_gp = gpar(fontsize = 10),
+                                      labels_gp = gpar(fontsize = 10)),
+           name = "Expression",show_row_names = TRUE,row_names_gp=gpar(fontsize = 8),height  = unit(18, "cm"),width  = unit(12, "cm"))
+
+
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Granularity/Heatmap/GranulairityHM.pdf",width = 12,height = 12)
+draw(H1,heatmap_legend_side = "right", annotation_legend_side = "right",merge_legend = TRUE)
+dev.off()
+```
+
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(hdf5r)
+library(stringr)
+library(ggplot2)
+combined=readRDS("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Skin_Blood_Merged.rds")
+```
+
+```{r}
+feats <- c("CD74")
+pdf("/home/anoop/Desktop/Avinash/Final_Figures_V2/Neutrophils_NEW/Featureplots/CD74.pdf",width = 12,height = 12)
+FeaturePlot(combined, reduction = "umap", features = feats, order = TRUE, min.cutoff = 'q10',pt.size=0.75)+
+  scale_x_continuous(limits = c(-3.5, 6))+scale_y_continuous(limits = c(-4.5, 5))+
+  labs(x="UMAP1",y="UMAP2")+theme(axis.title = element_text(size=20,colour = "black"), panel.grid.major = element_blank(),
+                                  axis.text = element_text(size=20,colour = "black"),
+                                  legend.position = "bottom",
+                                  panel.grid.minor = element_blank(),plot.title = element_text(hjust = 0.5,size=15),
+                                  plot.margin = margin(7,7,7,7, "cm"),
+                                  legend.title=element_blank(),legend.text=element_text(size=15,colour = "black"),
+                                  legend.key.size = unit(0.5, "cm"))+
+  guides(color = guide_legend(override.aes = list(size = 7),nrow = 1),
+         fill = guide_legend(override.aes = list(size = 7),nrow = 1))
+dev.off()
+```
+
+
